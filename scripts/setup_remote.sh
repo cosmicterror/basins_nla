@@ -19,7 +19,8 @@ echo "### 1/5  base deps (torch/CUDA come from the image)"
 # import: 'ImportError: libnuma.so.1: cannot open shared object file'.
 apt-get update -qq && apt-get install -y libnuma1
 pip uninstall -y torchvision || true          # /gpu note: avoids transformer-lens conflict
-pip install "transformers>=4.50" accelerate safetensors httpx orjson pyyaml numpy pyarrow
+pip install "transformers>=4.50" accelerate safetensors httpx orjson pyyaml numpy pyarrow \
+            anthropic sentence-transformers   # anthropic+ST for measure.py (judge + embedder)
 
 echo "### 2/5  sglang==${SGLANG_VER} (verified version for the NLA patches)"
 pip install "sglang[all]==${SGLANG_VER}"
