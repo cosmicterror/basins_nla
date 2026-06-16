@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Models / weights / caches (never commit checkpoints)
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+hf_cache/
+.cache/
+
+# Run artifacts — vectors, generations, metrics are large/regenerable
+runs/*/vectors/
+runs/*/generations/
+runs/*/metrics/
+runs/*/verbalized/
+!runs/*/report.md
+
+# Local env / secrets
+.env
+*.local
+
+# OS
+.DS_Store
