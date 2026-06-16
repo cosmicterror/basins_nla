@@ -15,6 +15,8 @@ Vendored from github.com/kitft/natural_language_autoencoders @ 1b7f13d (Apache-2
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import torch
 
@@ -30,6 +32,22 @@ except ImportError:  # pragma: no cover - flat-layout fallback
     )
 
 __all__ = ["NLA", "NLAConfig", "load_nla_config", "SGLANG_LAUNCH_GEMMA"]
+
+
+def _resolve_ckpt(ckpt: str) -> str:
+    """Accept a local checkpoint dir OR an HF repo id.
+
+    NLAClient/NLACritic need a local directory containing nla_meta.yaml (+ the
+    safetensors/tokenizer). A repo id is resolved to a local snapshot via
+    snapshot_download — this reuses the HF cache (so SGLang's already-downloaded
+    weights aren't re-fetched) and pulls only the missing files, notably the
+    non-standard nla_meta.yaml sidecar that a weights-only loader may skip.
+    """
+    p = Path(str(ckpt))
+    if (p / "nla_meta.yaml").exists():
+        return str(p)
+    from huggingface_hub import snapshot_download
+    return snapshot_download(repo_id=str(ckpt))
 
 # Recommended SGLang launch for the Gemma-3-12B AV checkpoint. For Gemma-3 the
 # mm-bypass patch (patches/nla_gemma3_mm_input_embeds.patch in the kitft repo),
@@ -67,8 +85,9 @@ class NLA:
                  sglang_url: str = "http://localhost:30000",
                  device: str = "cpu", layer: int = 32):
         self.layer = layer
-        self.av = NLAClient(av_checkpoint, sglang_url=sglang_url, device=device)
-        self.ar = (NLACritic(ar_checkpoint, device=device)
+        self.av = NLAClient(_resolve_ckpt(av_checkpoint),
+                            sglang_url=sglang_url, device=device)
+        self.ar = (NLACritic(_resolve_ckpt(ar_checkpoint), device=device)
                    if ar_checkpoint is not None else None)
 
     # ── AV: vector -> text ────────────────────────────────────────────────
