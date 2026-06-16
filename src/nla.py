@@ -113,9 +113,13 @@ class NLA:
         return normalize_activation(v, float(scale)).view(-1)
 
     def health_check(self) -> bool:
-        """True iff the AV's SGLang server answers a trivial generate."""
+        """True iff the AV's SGLang server answers a trivial generate.
+
+        Uses a ones-vector, not zeros: zeros has L2 norm 0, which NaNs through
+        the injection_scale renormalisation in _nla_inference.normalize_activation.
+        """
         try:
-            self.av.generate(torch.zeros(self.av.cfg.d_model),
+            self.av.generate(torch.ones(self.av.cfg.d_model),
                              max_new_tokens=1, extract_explanation=False)
             return True
         except Exception:
