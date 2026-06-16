@@ -14,6 +14,10 @@ KITFT="${KITFT:-/workspace/natural_language_autoencoders}"
 SGLANG_VER="${SGLANG_VER:-0.5.6}"
 
 echo "### 1/5  base deps (torch/CUDA come from the image)"
+# libnuma1 provides libnuma.so.1, which sgl_kernel's compiled SM90 ops link
+# against but the pytorch base image does not ship. Without it sglang dies at
+# import: 'ImportError: libnuma.so.1: cannot open shared object file'.
+apt-get update -qq && apt-get install -y libnuma1
 pip uninstall -y torchvision || true          # /gpu note: avoids transformer-lens conflict
 pip install "transformers>=4.50" safetensors httpx orjson pyyaml numpy pyarrow
 
