@@ -1,0 +1,18 @@
+# Cloud (vast.ai) deps for the NLA rig.
+# torch + CUDA come from the base image (pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel).
+# Do NOT pin torch here — let the image own it (and `pip uninstall -y torchvision`
+# per the /gpu setup step to avoid the transformer-lens conflict).
+
+transformers>=4.50      # Gemma-3 support
+safetensors
+httpx
+orjson
+pyyaml
+numpy
+
+# AV serving: input_embeds path + Gemma head_dim=256. Requires the
+# patches/nla_gemma3_mm_input_embeds.patch from the kitft repo to be applied,
+# and (Hopper) `--attention-backend fa3` / (Ampere) `--attention-backend triton`.
+sglang[all]>=0.5.6
+
+pyarrow                 # optional — only for the --parquet CLI path in _nla_inference.py
