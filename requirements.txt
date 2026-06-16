@@ -4,6 +4,7 @@
 # per the /gpu setup step to avoid the transformer-lens conflict).
 
 transformers>=4.50      # Gemma-3 support
+accelerate              # device_map= loading for base Gemma (rig.py) + the NLA checkpoints
 safetensors
 httpx
 orjson

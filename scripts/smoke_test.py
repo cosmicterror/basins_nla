@@ -95,20 +95,41 @@ def main() -> int:
     if args.real:
         print("\n[smoke] --real: loading base google/gemma-3-12b-it for a true L32 activation ...")
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        # NB: gemma-3-12b-it is a multimodal wrapper; if AutoModelForCausalLM mis-maps,
-        # switch to Gemma3ForConditionalGeneration and read .hidden_states the same way.
-        tok = AutoTokenizer.from_pretrained("google/gemma-3-12b-it")
-        m = AutoModelForCausalLM.from_pretrained(
-            "google/gemma-3-12b-it", torch_dtype=torch.bfloat16, device_map="cuda")
-        ids = tok("The patient presented with acute chest pain and shortness of breath.",
-                  return_tensors="pt").to(m.device)
-        hs = m(**ids, output_hidden_states=True).hidden_states[32][0, -1]  # [d] last token, layer 32
+        from transformers import AutoTokenizer
+        MODEL = "google/gemma-3-12b-it"
+        # gemma-3-12b-it is a multimodal wrapper (Gemma3ForConditionalGeneration).
+        # Grab the text language_model submodule so output_hidden_states is unambiguous.
+        try:
+            from transformers import Gemma3ForConditionalGeneration
+            full = Gemma3ForConditionalGeneration.from_pretrained(
+                MODEL, dtype=torch.bfloat16, device_map="cuda")
+            lm = full.model.language_model
+        except Exception as e:
+            print(f"[smoke]   (Gemma3ForConditionalGeneration path failed: {e}; trying AutoModelForCausalLM)")
+            from transformers import AutoModelForCausalLM
+            full = AutoModelForCausalLM.from_pretrained(
+                MODEL, dtype=torch.bfloat16, device_map="cuda")
+            lm = getattr(full, "model", full)
+        tok = AutoTokenizer.from_pretrained(MODEL)
+        dev = next(lm.parameters()).device
+        # Long-ish passage so the last token sits well past the noisy early positions
+        # (NLA training sampled positions >= 50).
+        text = ("In the long history of medicine, the careful observation of a patient's "
+                "symptoms has remained the cornerstone of accurate diagnosis. A clinician "
+                "weighs the presenting complaint against the patient's history, the physical "
+                "examination, and the results of any investigations before reaching a "
+                "considered judgement about the most likely underlying cause.")
+        ids = tok(text, return_tensors="pt").to(dev)
+        with torch.no_grad():
+            out = lm(input_ids=ids["input_ids"], output_hidden_states=True, use_cache=False)
+        hs = out.hidden_states[32][0, -1]  # [d] last token, layer 32
         gold = hs.float().cpu().numpy()
+        print(f"[smoke]   activation: seq_len={ids['input_ids'].shape[1]}  L2={float(hs.float().norm()):.0f} "
+              f"(Gemma L32 residual norms run ~74k)")
         txt = nla.verbalize(gold)
         r = cjk_ratio(txt)
         ratios.append(r)
-        print(f"  [real] cjk={r:.2f}  {txt[:240]!r}")
+        print(f"  [real] cjk={r:.2f}  {txt[:280]!r}")
         if args.ar:
             mse, cos = nla.score(txt, gold)
             print(f"  [real] AR round-trip: cos={cos:.3f}  mse={mse:.3f}  "
