@@ -17,7 +17,7 @@ echo "### 1/5  base deps (torch/CUDA come from the image)"
 # libnuma1 provides libnuma.so.1, which sgl_kernel's compiled SM90 ops link
 # against but the pytorch base image does not ship. Without it sglang dies at
 # import: 'ImportError: libnuma.so.1: cannot open shared object file'.
-apt-get update -qq && apt-get install -y libnuma1
+apt-get update -qq && apt-get install -y libnuma1 ffmpeg   # ffmpeg: libtorchcodec for sentence-transformers
 pip uninstall -y torchvision || true          # /gpu note: avoids transformer-lens conflict
 pip install "transformers>=4.50" accelerate safetensors httpx orjson pyyaml numpy pyarrow \
             anthropic sentence-transformers   # anthropic+ST for measure.py (judge + embedder)
