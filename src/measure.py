@@ -33,6 +33,12 @@ class JudgeScore(BaseModel):
     rationale: str
 
 
+class JudgeLabel(BaseModel):
+    """Structured forced-choice classification (Judge.classify)."""
+    label: str
+    rationale: str
+
+
 class Judge:
     """Blind Claude judge. One instance, reused across all judge calls in a run."""
 
@@ -53,6 +59,19 @@ class Judge:
         )
         s = resp.parsed_output
         return JudgeScore(score=min(1.0, max(0.0, s.score)), rationale=s.rationale)
+
+    def classify(self, system: str, user: str, options: list[str]) -> dict:
+        """Blind forced-choice classification: pick one of `options` (+ rationale).
+        Used by the §6.1 basin classifier — the prompt must NOT reveal which is expected."""
+        resp = self.client.messages.parse(
+            model=self.model, max_tokens=self.max_tokens,
+            system=system, messages=[{"role": "user", "content": user}],
+            output_format=JudgeLabel,
+        )
+        lab = resp.parsed_output
+        low = {o.lower(): o for o in options}
+        label = low.get(lab.label.strip().lower(), lab.label.strip())  # snap to a valid option
+        return {"label": label, "rationale": lab.rationale}
 
 
 # ─── embedder (for the self-audit cosine) ─────────────────────────────────────

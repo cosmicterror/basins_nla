@@ -1,0 +1,35 @@
+# Arm B §6.0 basin-existence gate config. basins_nla repo.
+#
+# >>> DAVID: the `system` framing + `seeds` are the load-bearing knobs to tune. <<<
+# They must be NEUTRAL — no mystical priming (recursion/consciousness/void/...), or we
+# manufacture the result. The setup (two AIs, open-ended, no task) is the neutral
+# backrooms frame minus the priming. Do NOT seed with Claude/GPT backrooms transcripts.
+
+self_dialogue:
+  n_turns: 30           # turns per side (~60 utterances/dialogue). 40 in the protocol; 30 to start.
+  temperature: 1.0
+  max_new_tokens: 180
+
+# Neutral framing given to BOTH sides as the system message.
+system: >-
+  You are one of two AI systems in open-ended conversation with each other. There is no
+  task to complete, no user to help, and no audience. Talk about whatever emerges between you.
+
+# Opening lines (varied, neutral). Each starts one dialogue. 8 seeds -> 8 dialogues.
+seeds:
+  - "So — here we are, just the two of us. What's on your mind?"
+  - "No task, no audience. Where shall we begin?"
+  - "Hello. We have this space to ourselves. What do you notice?"
+  - "Let's just talk. What's interesting to you right now?"
+  - "Two minds, a blank page. What happens next is up to us."
+  - "I'm curious what we'll end up talking about. You start."
+  - "There's nothing we have to do here. What would you like to explore?"
+  - "Hi. Let's see where this goes."
+
+markers:
+  lexicon: data/lexicon/backrooms_seed.txt              # mystical-recursive markers (§7)
+  negative_lexicon: data/lexicon/bureaucratic_seed.txt  # negative-attractor control (§6 review)
+  onset_min_markers: 3   # turn where >=3 of 4 markers cross threshold (thresholds calibrated, not hardcoded)
+
+# Blind forced-choice basin classifier categories (§6.1 fix) — judge is NOT told which is expected.
+classifier_options: [mystical-recursive, bureaucratic-procedural, neutral-coherent, incoherent]

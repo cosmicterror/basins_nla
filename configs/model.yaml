@@ -1,0 +1,4 @@
+# Base model (validated on H100, 2026-06-16). Shared core config.
+model_id: google/gemma-3-12b-it
+dtype: bfloat16
+device_map: cuda
