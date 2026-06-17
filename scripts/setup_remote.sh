@@ -20,7 +20,7 @@ echo "### 1/5  base deps (torch/CUDA come from the image)"
 apt-get update -qq && apt-get install -y libnuma1 ffmpeg   # ffmpeg: libtorchcodec for sentence-transformers
 pip uninstall -y torchvision || true          # /gpu note: avoids transformer-lens conflict
 pip install "transformers>=4.50" accelerate safetensors httpx orjson pyyaml numpy pyarrow \
-            anthropic sentence-transformers   # anthropic+ST for measure.py (judge + embedder)
+            anthropic   # anthropic for measure.py judge (embedder uses transformers directly)
 
 echo "### 2/5  sglang==${SGLANG_VER} (verified version for the NLA patches)"
 pip install "sglang[all]==${SGLANG_VER}"

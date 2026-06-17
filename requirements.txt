@@ -11,7 +11,7 @@ orjson
 pyyaml
 numpy
 anthropic               # measure.py LLM judge (mode-adherence + fluency)
-sentence-transformers   # measure.py self-audit embedding cosine
+# (self-audit embedder uses transformers directly — no sentence-transformers)
 
 # AV serving: input_embeds path + Gemma head_dim=256. Requires the
 # patches/nla_gemma3_mm_input_embeds.patch from the kitft repo to be applied,

@@ -58,18 +58,29 @@ class Judge:
 # ─── embedder (for the self-audit cosine) ─────────────────────────────────────
 
 class Embedder:
-    """Local sentence-transformer; no API dependency. Used to compare the
-    verbalised vector against the intended mode description."""
+    """Mean-pooled sentence embeddings via `transformers` directly — no
+    sentence-transformers / torchcodec dependency (that stack is brittle against
+    newer torch on fresh boxes). Used for the self-audit cosine between the
+    verbalised vector and the intended mode description."""
 
-    def __init__(self, model_name: str = "sentence-transformers/all-mpnet-base-v2",
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
                  device: str = "cpu"):
-        from sentence_transformers import SentenceTransformer
-        self.model = SentenceTransformer(model_name, device=device)
+        from transformers import AutoTokenizer, AutoModel
+        self.tok = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name).to(device).eval()
+        self.device = device
+
+    @torch.inference_mode()
+    def _embed(self, text: str) -> torch.Tensor:
+        enc = self.tok(text, return_tensors="pt", truncation=True,
+                       max_length=256).to(self.device)
+        h = self.model(**enc).last_hidden_state                 # [1, T, H]
+        m = enc["attention_mask"].unsqueeze(-1).to(h.dtype)
+        v = (h * m).sum(1) / m.sum(1).clamp_min(1)              # mean pool
+        return torch.nn.functional.normalize(v, dim=-1)[0]
 
     def cosine(self, a: str, b: str) -> float:
-        import numpy as np
-        ea, eb = self.model.encode([a, b], normalize_embeddings=True)
-        return float(np.dot(ea, eb))
+        return float(torch.dot(self._embed(a), self._embed(b)))
 
 
 # ─── the four measurements ────────────────────────────────────────────────────
