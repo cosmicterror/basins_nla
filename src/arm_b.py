@@ -144,7 +144,7 @@ def main() -> int:
     run_id = args.run_id or f"gate_{int(time.time())}"
     run = REPO / "runs" / run_id
     (run / "transcripts").mkdir(parents=True, exist_ok=True)
-    print(f"[arm_b] §6.0 gate: {len(seeds)} dialogues, {sd['n_turns']} turns/side, "
+    print(f"[arm_b] §6.0 gate: {len(seeds)} dialogues, {args.turns or sd['n_turns']} turns/side, "
           f"temp={sd['temperature']} -> {run}")
 
     model, tok = load_model(model_cfg["model_id"], device_map=model_cfg.get("device_map", "cuda"))

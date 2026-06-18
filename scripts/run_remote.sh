@@ -88,13 +88,29 @@ for o in json.load(sys.stdin):
 print('\n'.join(out[:N]))
 "
 }
-create(){  # offer_id -> iid
-  vastai create instance "$1" --image "$IMAGE" --disk "$DISK" --ssh --raw 2>/dev/null | python3 -c "
-import sys,json
+list_ids(){ python3 - "$VAST_KEY" <<'PY'
+import sys,urllib.request,urllib.parse,json
 try:
-    d=json.load(sys.stdin); print(d.get('new_contract','') if d.get('success') else '')
-except Exception: print('')
-"
+    d=json.load(urllib.request.urlopen("https://console.vast.ai/api/v0/instances/?"+
+        urllib.parse.urlencode({"api_key":sys.argv[1],"owner":"me"}),timeout=60)).get("instances",[])
+    for i in d: print(i["id"])
+except Exception: sys.exit(3)
+PY
+}
+create(){  # offer_id -> iid
+  # NB: `vastai create --raw` prints nothing in this CLI version but DOES create the
+  # box. So we detect the new instance by diffing the id list before/after — this also
+  # catches a "looks-failed-but-actually-created" box instead of spawning duplicates.
+  local off="$1" before after newid
+  before=$(list_ids 2>/dev/null) || return 1
+  vastai create instance "$off" --image "$IMAGE" --disk "$DISK" --ssh >/dev/null 2>&1
+  for _ in 1 2 3 4 5 6 7; do
+    sleep 3
+    after=$(list_ids 2>/dev/null) || continue
+    newid=$(comm -13 <(printf '%s\n' "$before" | sort -u) <(printf '%s\n' "$after" | sort -u) | grep -E '^[0-9]+$' | head -1)
+    [ -n "$newid" ] && { echo "$newid"; return 0; }
+  done
+  return 1
 }
 ssh_hostport(){  # iid -> "host port"
   local url; url=$(vastai ssh-url "$1" 2>/dev/null)
@@ -141,13 +157,13 @@ setup_box(){  # host port
 }
 stage_code(){  # host port
   log "uploading code (src/ configs/ data/ scripts/)..."
-  tar czf - -C "$REPO" src configs data scripts | \
-    ssh "${SSHOPTS[@]}" -p "$2" "root@$1" "mkdir -p $PROJ && tar xzf - -C $PROJ"
+  COPYFILE_DISABLE=1 tar czf - -C "$REPO" src configs data scripts 2>/dev/null | \
+    ssh "${SSHOPTS[@]}" -p "$2" "root@$1" "mkdir -p $PROJ && tar xzf - -C $PROJ 2>/dev/null"
 }
 launch_detached(){  # host port run_id cmd
   local host="$1" port="$2" rid="$3" cmd="$4" rundir="$PROJ/runs/$3"
   ssh "${SSHOPTS[@]}" -p "$port" "root@$host" \
-    "source /root/.runenv; mkdir -p '$rundir'; setsid bash -c '($cmd --run-id $rid > \"$rundir/run.log\" 2>&1; echo \$? > \"$rundir/EXIT\"; date +%s > \"$rundir/DONE\")' >/dev/null 2>&1 </dev/null & echo LAUNCHED"
+    "source /root/.runenv; mkdir -p '$rundir'; setsid bash -c 'cd $PROJ; ($cmd --run-id $rid > \"$rundir/run.log\" 2>&1; echo \$? > \"$rundir/EXIT\"; date +%s > \"$rundir/DONE\")' >/dev/null 2>&1 </dev/null & echo LAUNCHED"
   log "experiment launched detached on box"
 }
 
@@ -182,7 +198,8 @@ report(){  # run_id
 launch_main(){
   local rid="${1:-}"; shift || true; local cmd="${*:-}"
   [ -z "$rid" ] || [ -z "$cmd" ] && { err 'usage: launch <RUN_ID> "<command>"'; exit 2; }
-  mapfile -t CANDS < <(pick_candidates 5)
+  local CANDS=()                                   # bash 3.2 (macOS): no mapfile
+  while IFS= read -r line; do [ -n "$line" ] && CANDS+=("$line"); done < <(pick_candidates 5)
   [ "${#CANDS[@]}" -eq 0 ] && { err "no datacenter offers matched"; exit 1; }
   local iid="" host="" port=""
   for line in "${CANDS[@]}"; do
