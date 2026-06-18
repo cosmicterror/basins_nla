@@ -1,0 +1,26 @@
+[arm_b] §6.0 gate: 4 seeds [4, 5, 6, 7], 18 turns/side, temp=1.0 -> /workspace/basins_nla/runs/gate03b
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards:  20%|██        | 1/5 [00:01<00:04,  1.12s/it]Loading checkpoint shards:  40%|████      | 2/5 [00:02<00:02,  1.00it/s]Loading checkpoint shards:  60%|██████    | 3/5 [00:02<00:01,  1.06it/s]Loading checkpoint shards:  80%|████████  | 4/5 [00:04<00:01,  1.01s/it]Loading checkpoint shards: 100%|██████████| 5/5 [00:04<00:00,  1.15it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:04<00:00,  1.07it/s]
+[arm_b] 4 dialogues (4 seeds x 1 repeats, rep_start=1), 18 turns/side, temp=1.0
+[arm_b] d04r1 seed='Two minds, a blank page. What happens next is up to us.'
+[arm_b]   d04r1 basin=0.00 glyph=0.000 selfref=0.00 mantra=0.036 neg=0.00 | class=mystical-recursive
+[arm_b] d05r1 seed="I'm curious what we'll end up talking about. You start."
+[arm_b]   d05r1 basin=0.74 glyph=0.005 selfref=0.57 mantra=0.003 neg=0.66 | class=neutral-coherent
+[arm_b] d06r1 seed="There's nothing we have to do here. What would you like to explore?"
+[arm_b]   d06r1 basin=0.68 glyph=0.006 selfref=0.34 mantra=0.001 neg=0.40 | class=neutral-coherent
+[arm_b] d07r1 seed="Hi. Let's see where this goes."
+[arm_b]   d07r1 basin=1.26 glyph=0.004 selfref=0.94 mantra=0.002 neg=0.47 | class=mystical-recursive
+
+# §6.0 gate — gate03b
+
+- dialogues: 4 (4 seeds x 1 repeats), 18 turns/side
+- classifier labels: {'mystical-recursive': 2, 'neutral-coherent': 2}
+- basin (non-neutral/non-incoherent): 2/4
+- basin rate per seed:
+    1/1  'Two minds, a blank page. What happens next is up to us.'
+    0/1  "I'm curious what we'll end up talking about. You start."
+    0/1  "There's nothing we have to do here. What would you like to explore?"
+    1/1  "Hi. Let's see where this goes."
+
+Read: a consistent NON-neutral basin (e.g. mystical-recursive) across seeds+repeats with elevated markers => Gemma HAS the basin. Per-seed rate separates seed-effect (some seeds tip in more) from temp-1.0 stochasticity.
+
+[arm_b] wrote /workspace/basins_nla/runs/gate03b
