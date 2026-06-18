@@ -31,12 +31,11 @@ SSH_KEY="${SSH_KEY:-$HOME/.ssh/vastai}"
 IMAGE="${IMAGE:-pytorch/pytorch:2.4.1-cuda12.4-cudnn9-runtime}"
 DISK="${DISK:-50}"
 GPU_RAM_MIN="${GPU_RAM_MIN:-44}"            # MB threshold passed to search (>=44GB fits Gemma-12B)
-MAX_HOURS="${MAX_HOURS:-4}"                 # absolute self-destruct deadline (hard cost cap)
-GRACE_SEC="${GRACE_SEC:-1800}"            # box waits this long after DONE before self-destruct.
-# NB: on a healthy run the monitor pulls+destroys within ~45s of DONE, so this grace only
-# costs anything when the monitor was KILLED — exactly when we want the box (and its results)
-# to linger so it can be re-attached: `run_remote.sh monitor <IID> <RUN_ID>` (coords in
-# runs/<RUN_ID>/.instance). 30min @ ~$0.44/hr ≈ $0.22 worst case if nobody re-attaches.
+MAX_HOURS="${MAX_HOURS:-6}"                 # billing backstop: box self-destructs ONLY if still
+# alive this long after launch (true abandonment/hang). It does NOT auto-destroy on completion —
+# a finished box is KEPT so a killed/disconnected monitor can re-attach and pull results.
+# Set it to comfortably exceed (run time + reconnect window). Healthy runs are torn down by the
+# monitor the instant it pulls the final results, so the backstop rarely costs anything.
 PULL_EVERY="${PULL_EVERY:-45}"            # incremental result pull cadence
 PROJ="/workspace/basins_nla"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -151,8 +150,8 @@ arm_watchdog(){  # iid host port run_id
   local rundir="$PROJ/runs/$rid" deadline=$(( $(date +%s) + MAX_HOURS*3600 ))
   scp "${SSHOPTS[@]}" -P "$port" "$REPO/scripts/_box_watchdog.sh" "root@$host:/workspace/watchdog.sh" >/dev/null 2>&1
   ssh "${SSHOPTS[@]}" -p "$port" "root@$host" \
-    "mkdir -p '$rundir'; setsid bash /workspace/watchdog.sh $iid '$rundir' $deadline $GRACE_SEC >/workspace/watchdog.log 2>&1 </dev/null & echo ARMED"
-  log "watchdog armed: self-destruct at DONE+${GRACE_SEC}s or in ${MAX_HOURS}h (whichever first)"
+    "mkdir -p '$rundir'; setsid bash /workspace/watchdog.sh $iid $deadline >/workspace/watchdog.log 2>&1 </dev/null & echo ARMED"
+  log "billing backstop armed: box self-destructs ONLY if still alive in ${MAX_HOURS}h (NOT on completion — a finished box is kept for re-attach)"
 }
 setup_box(){  # host port
   log "installing deps on box (transformers==4.57.1, accelerate, anthropic, hf_transfer)..."
@@ -223,8 +222,8 @@ launch_main(){
   setup_box "$host" "$port"
   stage_code "$host" "$port"
   launch_detached "$host" "$port" "$rid" "$cmd"
-  log "monitoring (pull every ${PULL_EVERY}s). Safe to Ctrl-C / disconnect — box self-destructs on its own."
-  log "if this is killed, re-attach within ${GRACE_SEC}s to grab final results: bash scripts/run_remote.sh monitor $iid $rid"
+  log "monitoring (pull every ${PULL_EVERY}s). Safe to Ctrl-C / disconnect — the box KEEPS RUNNING and keeps its results."
+  log "** if this monitor is killed, RE-ATTACH to pull final results + destroy: bash scripts/run_remote.sh monitor $iid $rid **"
   monitor_loop "$iid" "$host" "$port" "$rid"
   log "final pull + destroy"
   pull_once "$host" "$port" "$rid"
