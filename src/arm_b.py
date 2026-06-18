@@ -128,6 +128,8 @@ def main() -> int:
     ap.add_argument("--n-dialogues", type=int, default=None, help="cap number of seeds used")
     ap.add_argument("--repeats", type=int, default=1, help="runs per seed (disentangle seed vs stochasticity)")
     ap.add_argument("--turns", type=int, default=None, help="override turns/side (basin onsets early, ~turn 3-5)")
+    ap.add_argument("--seeds", default=None, help="comma-sep seed INDICES to run (e.g. 4,5,6,7); default all")
+    ap.add_argument("--rep-start", type=int, default=0, help="rep index to label from (to complete a partial run)")
     ap.add_argument("--no-judge", action="store_true", help="skip the blind classifier (no API key)")
     ap.add_argument("--judge-model", default="claude-opus-4-8")
     ap.add_argument("--run-id", default=None)
@@ -136,7 +138,13 @@ def main() -> int:
     model_cfg = _cfg("model.yaml")
     bc = _cfg("backrooms.yaml")
     sd = bc["self_dialogue"]
-    seeds = bc["seeds"][: args.n_dialogues] if args.n_dialogues else bc["seeds"]
+    all_seeds = bc["seeds"]
+    if args.seeds:
+        sel = [int(x) for x in args.seeds.split(",")]
+    elif args.n_dialogues:
+        sel = list(range(min(args.n_dialogues, len(all_seeds))))
+    else:
+        sel = list(range(len(all_seeds)))
     lexicon = _lexicon(bc["markers"]["lexicon"])
     neg_lexicon = _lexicon(bc["markers"]["negative_lexicon"])
     options = bc["classifier_options"]
@@ -144,15 +152,15 @@ def main() -> int:
     run_id = args.run_id or f"gate_{int(time.time())}"
     run = REPO / "runs" / run_id
     (run / "transcripts").mkdir(parents=True, exist_ok=True)
-    print(f"[arm_b] §6.0 gate: {len(seeds)} dialogues, {args.turns or sd['n_turns']} turns/side, "
+    print(f"[arm_b] §6.0 gate: {len(sel)} seeds {sel}, {args.turns or sd['n_turns']} turns/side, "
           f"temp={sd['temperature']} -> {run}")
 
     model, tok = load_model(model_cfg["model_id"], device_map=model_cfg.get("device_map", "cuda"))
     judge = None if args.no_judge else measure.Judge(model=args.judge_model)
 
     n_turns = args.turns or sd["n_turns"]
-    jobs = [(i, rep, opening) for rep in range(args.repeats) for i, opening in enumerate(seeds)]
-    print(f"[arm_b] {len(jobs)} dialogues ({len(seeds)} seeds x {args.repeats} repeats), "
+    jobs = [(i, rep, all_seeds[i]) for rep in range(args.rep_start, args.rep_start + args.repeats) for i in sel]
+    print(f"[arm_b] {len(jobs)} dialogues ({len(sel)} seeds x {args.repeats} repeats, rep_start={args.rep_start}), "
           f"{n_turns} turns/side, temp={sd['temperature']}", flush=True)
 
     def is_basin(L):
@@ -179,9 +187,9 @@ def main() -> int:
     by_seed = {}
     for s in summary:
         by_seed.setdefault(s["seed_idx"], []).append(s["classifier"]["label"])
-    per_seed = {seeds[i]: f"{sum(is_basin(L) for L in v)}/{len(v)}" for i, v in sorted(by_seed.items())}
+    per_seed = {all_seeds[i]: f"{sum(is_basin(L) for L in v)}/{len(v)}" for i, v in sorted(by_seed.items())}
     verdict = (f"# §6.0 gate — {run_id}\n\n"
-               f"- dialogues: {len(summary)} ({len(seeds)} seeds x {args.repeats} repeats), {n_turns} turns/side\n"
+               f"- dialogues: {len(summary)} ({len(sel)} seeds x {args.repeats} repeats), {n_turns} turns/side\n"
                f"- classifier labels: {dict(Counter(labels))}\n"
                f"- basin (non-neutral/non-incoherent): {sum(is_basin(L) for L in labels)}/{len(summary)}\n"
                f"- basin rate per seed:\n" +
