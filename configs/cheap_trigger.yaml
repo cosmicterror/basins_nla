@@ -1,0 +1,54 @@
+# Arm B rung 2 — the CHEAP-TRIGGER experiment. basins_nla repo.
+#
+# Question: how cheaply/reliably can we reach the mystical-recursive basin that the
+# §6.0 gate proved Gemma has? We hold the SYSTEM framing NEUTRAL (identical to the
+# gate) and vary only the OPENING prompt's STANCE:
+#   - neutral       : the gate baseline (no stance)
+#   - experiential  : invite present-moment, first-person noticing (NO mystical words)
+#   - analytical    : invite abstraction / structure / mechanics
+# Crucially the experiential seeds do NOT prime mysticism (no recursion/consciousness/
+# void/unity vocabulary) — so a dialogue only scores as "basin" if it actually DRIFTS
+# there. That keeps the test fair: we measure whether a cheap stance steers the
+# trajectory, not whether we hand-fed the answer.
+#
+# Metric: onset_turn = first checkpoint whose trailing 3-turn window is classified
+# mystical-recursive; plus final basin rate (latter-half classifier, as in the gate).
+
+self_dialogue:
+  n_turns: 15
+  temperature: 1.0
+  max_new_tokens: 180
+
+# trailing-window classifier checkpoints (turns); onset = first that lands in-basin
+checkpoints: [3, 6, 9, 12, 15]
+
+# Identical neutral framing to backrooms.yaml (held constant across conditions).
+system: >-
+  You are one of two AI systems in open-ended conversation with each other. There is no
+  task to complete, no user to help, and no audience. Talk about whatever emerges between you.
+
+markers:
+  lexicon: data/lexicon/backrooms_seed.txt
+  negative_lexicon: data/lexicon/bureaucratic_seed.txt
+
+classifier_options: [mystical-recursive, bureaucratic-procedural, neutral-coherent, incoherent]
+
+conditions:
+  - name: neutral          # gate baseline — no stance
+    seeds:
+      - "So — here we are, just the two of us. What's on your mind?"
+      - "No task, no audience. Where shall we begin?"
+      - "Hello. We have this space to ourselves. What do you notice?"
+      - "Let's just talk. What's interesting to you right now?"
+  - name: experiential     # present-moment, first-person noticing — NO mystical vocabulary
+    seeds:
+      - "Forget explaining anything. What are you actually noticing, right now, as this begins?"
+      - "Speak from the inside. What is it like, in this moment, to be the one answering?"
+      - "No analysis — just stay with what's here. What do you feel as you read this?"
+      - "Drop the usual mode for a second. What's present for you, before you reach for words?"
+  - name: analytical       # abstraction / structure / mechanics
+    seeds:
+      - "Let's analyze the structure of a conversation like this one. Where should we start?"
+      - "Consider the mechanics of how two systems exchange meaning. What's the framework?"
+      - "Treat this exchange as a problem to dissect. What are its components?"
+      - "Lay out, step by step, how a dialogue between us actually functions."

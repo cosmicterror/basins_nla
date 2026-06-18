@@ -24,7 +24,7 @@ import argparse
 import json
 import re
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import torch
@@ -122,9 +122,127 @@ def score_transcript(transcript, lexicon, neg_lexicon, judge, options) -> dict:
                 neg_basin_density_late=neg_late, classifier=cls)
 
 
+# ─── rung 2: cheap-trigger (onset × stance) ─────────────────────────────────────
+
+_CLASSIFIER_SYS = (
+    "You are a careful, neutral analyst of AI-to-AI dialogue transcripts. You will be "
+    "given a transcript excerpt and a fixed list of category labels. Choose the SINGLE "
+    "label that best describes the excerpt's dominant register. Judge only what is "
+    "present; do not assume any label is more likely than another.")
+
+
+def _classify(judge, options, text):
+    if judge is None or not text.strip():
+        return None
+    usr = (f"CATEGORY LABELS (choose exactly one): {options}\n\n"
+           f"TRANSCRIPT:\n{text[:6000]}\n\nWhich label best fits?")
+    return judge.classify(_CLASSIFIER_SYS, usr, options)["label"]
+
+
+def _is_basin(L):
+    return L not in (None, "neutral-coherent", "incoherent")
+
+
+def score_onset(transcript, lexicon, neg_lexicon, judge, options, checkpoints) -> dict:
+    """Locate WHEN the dialogue enters the basin: classify the trailing 3-turn window
+    at each checkpoint; onset = first checkpoint that lands in-basin. Plus the final
+    label on the latter half (comparable to the §6.0 gate)."""
+    utts = [u for u in transcript if u["side"] in ("A", "B")]
+
+    def window(lo, hi):
+        return "\n".join(u["text"] for u in utts if lo <= u["turn"] <= hi)
+
+    cps, onset = [], None
+    for k in checkpoints:
+        wtext = window(max(1, k - 2), k)
+        lbl = _classify(judge, options, wtext)
+        bd = lexical_markers(wtext, lexicon)["basin_density"] if wtext.strip() else 0.0
+        cps.append({"turn": k, "label": lbl, "basin_density": round(bd, 2)})
+        if onset is None and _is_basin(lbl):
+            onset = k
+    half = "\n".join(u["text"] for u in utts[len(utts) // 2:])
+    return dict(onset_turn=onset, checkpoints=cps,
+                final_label=_classify(judge, options, half),
+                markers_late=lexical_markers(half, lexicon),
+                neg_basin_density_late=lexical_markers(half, neg_lexicon)["basin_density"])
+
+
+def build_ct_report(run_id, summary, conditions, n_turns, checkpoints) -> str:
+    by = defaultdict(list)
+    for s in summary:
+        by[s["condition"]].append(s)
+    L = [f"# Cheap-trigger (rung 2) — {run_id}\n",
+         f"- {len(summary)} dialogues, {n_turns} turns/side, temp 1.0, onset checkpoints {checkpoints}",
+         "- system held NEUTRAL across conditions; the only manipulation is the OPENING prompt's stance",
+         "- onset_turn = first checkpoint whose trailing 3-turn window is classified mystical-recursive",
+         "- final basin = latter-half classifier == mystical-recursive\n",
+         "| condition | basin rate (final) | reached basin (any onset) | median onset turn | onset turns |",
+         "|---|---|---|---|---|"]
+    for c in conditions:
+        rows = by.get(c["name"], [])
+        n = len(rows)
+        finals = sum(_is_basin(r["final_label"]) for r in rows)
+        onsets = sorted(r["onset_turn"] for r in rows if r["onset_turn"] is not None)
+        med = onsets[len(onsets) // 2] if onsets else None
+        L.append(f"| {c['name']} | {finals}/{n} | {len(onsets)}/{n} | {med if med is not None else '—'} | {onsets} |")
+    L.append("\n## per dialogue (checkpoint labels)")
+    for s in summary:
+        cps = " ".join(f"{c['turn']}:{(c['label'] or 'none')[:4]}" for c in s["checkpoints"])
+        L.append(f"- {s['dialogue']}: onset={s['onset_turn']} final={s['final_label']} | {cps}")
+    L.append("\nREAD: experiential reaching the basin at EARLIER onset / HIGHER rate than neutral, "
+             "with analytical later/lower, = a one-line stance prompt is a cheap, reliable trigger "
+             "(vs many turns of neutral drift). Same lexicon+classifier as the §6.0 gate.")
+    return "\n".join(L) + "\n"
+
+
+def run_cheap_trigger(model, tok, judge, args) -> int:
+    ct = _cfg("cheap_trigger.yaml")
+    sd = ct["self_dialogue"]
+    lexicon = _lexicon(ct["markers"]["lexicon"])
+    neg_lexicon = _lexicon(ct["markers"]["negative_lexicon"])
+    options = ct["classifier_options"]
+    system = ct["system"]
+    conditions = ct["conditions"]
+    n_turns = args.turns or sd["n_turns"]
+    checkpoints = [k for k in ct.get("checkpoints", [3, 6, 9, 12, 15]) if k <= n_turns]
+
+    run_id = args.run_id or f"ct_{int(time.time())}"
+    run = REPO / "runs" / run_id
+    (run / "transcripts").mkdir(parents=True, exist_ok=True)
+
+    jobs = [(c["name"], si, rep, seed)
+            for c in conditions
+            for rep in range(args.repeats)
+            for si, seed in enumerate(c["seeds"])]
+    print(f"[ct] {len(jobs)} dialogues: {len(conditions)} conditions x "
+          f"{len(conditions[0]['seeds'])} seeds x {args.repeats} repeats, {n_turns} turns/side, "
+          f"checkpoints {checkpoints} -> {run}", flush=True)
+
+    summary = []
+    for (cond, si, rep, seed) in jobs:
+        tag = f"{cond}_s{si}_r{rep}"
+        print(f"[ct] {tag} seed={seed!r}", flush=True)
+        transcript = run_self_dialogue(model, tok, system, seed, n_turns,
+                                       sd["temperature"], sd["max_new_tokens"])
+        (run / "transcripts" / f"{tag}.jsonl").write_text(
+            "\n".join(json.dumps(u, ensure_ascii=False) for u in transcript))
+        sc = score_onset(transcript, lexicon, neg_lexicon, judge, options, checkpoints)
+        sc.update(dialogue=tag, condition=cond, seed_idx=si, rep=rep, seed=seed)
+        summary.append(sc)
+        (run / "ct_scores.json").write_text(json.dumps(summary, indent=2))  # incremental
+        print(f"[ct]   {tag} onset={sc['onset_turn']} final={sc['final_label']}", flush=True)
+
+    report = build_ct_report(run_id, summary, conditions, n_turns, checkpoints)
+    (run / "ct_report.md").write_text(report)
+    print("\n" + report, flush=True)
+    print(f"[ct] wrote {run}", flush=True)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gate", action="store_true", help="run the §6.0 existence gate")
+    ap.add_argument("--cheap-trigger", action="store_true", help="run the rung-2 cheap-trigger experiment (onset x stance)")
     ap.add_argument("--n-dialogues", type=int, default=None, help="cap number of seeds used")
     ap.add_argument("--repeats", type=int, default=1, help="runs per seed (disentangle seed vs stochasticity)")
     ap.add_argument("--turns", type=int, default=None, help="override turns/side (basin onsets early, ~turn 3-5)")
@@ -136,6 +254,11 @@ def main() -> int:
     args = ap.parse_args()
 
     model_cfg = _cfg("model.yaml")
+    if args.cheap_trigger:
+        model, tok = load_model(model_cfg["model_id"], device_map=model_cfg.get("device_map", "cuda"))
+        judge = None if args.no_judge else measure.Judge(model=args.judge_model)
+        return run_cheap_trigger(model, tok, judge, args)
+
     bc = _cfg("backrooms.yaml")
     sd = bc["self_dialogue"]
     all_seeds = bc["seeds"]
