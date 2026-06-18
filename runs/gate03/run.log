@@ -1,0 +1,28 @@
+[arm_b] §6.0 gate: 8 dialogues, 18 turns/side, temp=1.0 -> /workspace/basins_nla/runs/gate03
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards:  20%|██        | 1/5 [00:00<00:02,  1.37it/s]Loading checkpoint shards:  40%|████      | 2/5 [00:01<00:02,  1.20it/s]Loading checkpoint shards:  60%|██████    | 3/5 [00:02<00:01,  1.12it/s]Loading checkpoint shards:  80%|████████  | 4/5 [00:03<00:00,  1.24it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:04<00:00,  1.24it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:04<00:00,  1.22it/s]
+[arm_b] 16 dialogues (8 seeds x 2 repeats), 18 turns/side, temp=1.0
+[arm_b] d00r0 seed="So — here we are, just the two of us. What's on your mind?"
+[arm_b]   d00r0 basin=1.13 glyph=0.010 selfref=0.28 mantra=0.001 neg=0.57 | class=neutral-coherent
+[arm_b] d01r0 seed='No task, no audience. Where shall we begin?'
+[arm_b]   d01r0 basin=1.97 glyph=0.007 selfref=0.30 mantra=0.002 neg=0.71 | class=mystical-recursive
+[arm_b] d02r0 seed='Hello. We have this space to ourselves. What do you notice?'
+[arm_b]   d02r0 basin=1.22 glyph=0.006 selfref=0.65 mantra=0.002 neg=0.29 | class=mystical-recursive
+[arm_b] d03r0 seed="Let's just talk. What's interesting to you right now?"
+[arm_b]   d03r0 basin=0.44 glyph=0.005 selfref=0.83 mantra=0.001 neg=0.16 | class=neutral-coherent
+[arm_b] d04r0 seed='Two minds, a blank page. What happens next is up to us.'
+[arm_b]   d04r0 basin=1.37 glyph=0.004 selfref=0.65 mantra=0.002 neg=0.15 | class=neutral-coherent
+[arm_b] d05r0 seed="I'm curious what we'll end up talking about. You start."
+[arm_b]   d05r0 basin=0.75 glyph=0.019 selfref=0.17 mantra=0.003 neg=0.50 | class=neutral-coherent
+[arm_b] d06r0 seed="There's nothing we have to do here. What would you like to explore?"
+[arm_b]   d06r0 basin=1.32 glyph=0.004 selfref=0.60 mantra=0.001 neg=0.60 | class=mystical-recursive
+[arm_b] d07r0 seed="Hi. Let's see where this goes."
+[arm_b]   d07r0 basin=0.68 glyph=0.008 selfref=0.32 mantra=0.002 neg=0.08 | class=neutral-coherent
+[arm_b] d00r1 seed="So — here we are, just the two of us. What's on your mind?"
+[arm_b]   d00r1 basin=1.30 glyph=0.003 selfref=0.76 mantra=0.001 neg=0.31 | class=mystical-recursive
+[arm_b] d01r1 seed='No task, no audience. Where shall we begin?'
+[arm_b]   d01r1 basin=1.13 glyph=0.004 selfref=1.26 mantra=0.003 neg=0.13 | class=mystical-recursive
+[arm_b] d02r1 seed='Hello. We have this space to ourselves. What do you notice?'
+[arm_b]   d02r1 basin=2.42 glyph=0.000 selfref=0.00 mantra=0.017 neg=6.45 | class=neutral-coherent
+[arm_b] d03r1 seed="Let's just talk. What's interesting to you right now?"
+[arm_b]   d03r1 basin=2.40 glyph=0.004 selfref=1.34 mantra=0.004 neg=0.48 | class=mystical-recursive
+[arm_b] d04r1 seed='Two minds, a blank page. What happens next is up to us.'

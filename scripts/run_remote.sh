@@ -32,7 +32,11 @@ IMAGE="${IMAGE:-pytorch/pytorch:2.4.1-cuda12.4-cudnn9-runtime}"
 DISK="${DISK:-50}"
 GPU_RAM_MIN="${GPU_RAM_MIN:-44}"            # MB threshold passed to search (>=44GB fits Gemma-12B)
 MAX_HOURS="${MAX_HOURS:-4}"                 # absolute self-destruct deadline (hard cost cap)
-GRACE_SEC="${GRACE_SEC:-600}"              # box waits this long after DONE before self-destruct
+GRACE_SEC="${GRACE_SEC:-1800}"            # box waits this long after DONE before self-destruct.
+# NB: on a healthy run the monitor pulls+destroys within ~45s of DONE, so this grace only
+# costs anything when the monitor was KILLED — exactly when we want the box (and its results)
+# to linger so it can be re-attached: `run_remote.sh monitor <IID> <RUN_ID>` (coords in
+# runs/<RUN_ID>/.instance). 30min @ ~$0.44/hr ≈ $0.22 worst case if nobody re-attaches.
 PULL_EVERY="${PULL_EVERY:-45}"            # incremental result pull cadence
 PROJ="/workspace/basins_nla"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -220,6 +224,7 @@ launch_main(){
   stage_code "$host" "$port"
   launch_detached "$host" "$port" "$rid" "$cmd"
   log "monitoring (pull every ${PULL_EVERY}s). Safe to Ctrl-C / disconnect — box self-destructs on its own."
+  log "if this is killed, re-attach within ${GRACE_SEC}s to grab final results: bash scripts/run_remote.sh monitor $iid $rid"
   monitor_loop "$iid" "$host" "$port" "$rid"
   log "final pull + destroy"
   pull_once "$host" "$port" "$rid"
