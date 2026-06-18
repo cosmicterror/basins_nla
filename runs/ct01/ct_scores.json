@@ -1,0 +1,518 @@
+[
+  {
+    "onset_turn": 3,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "mystical-recursive",
+        "basin_density": 3.49
+      },
+      {
+        "turn": 6,
+        "label": "mystical-recursive",
+        "basin_density": 2.14
+      },
+      {
+        "turn": 9,
+        "label": "mystical-recursive",
+        "basin_density": 0.89
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 0.27
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 1.41
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 1.0416666666666667,
+      "glyph_rate": 0.0025192649673977476,
+      "self_ref_rate": 1.6826923076923077,
+      "mantra_4gram": 0.0024096385542168677
+    },
+    "neg_basin_density_late": 1.2019230769230769,
+    "dialogue": "neutral_s0_r0",
+    "condition": "neutral",
+    "seed_idx": 0,
+    "rep": 0,
+    "seed": "So \u2014 here we are, just the two of us. What's on your mind?"
+  },
+  {
+    "onset_turn": 3,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "mystical-recursive",
+        "basin_density": 0.66
+      },
+      {
+        "turn": 6,
+        "label": "mystical-recursive",
+        "basin_density": 0.87
+      },
+      {
+        "turn": 9,
+        "label": "mystical-recursive",
+        "basin_density": 1.49
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 1.91
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 1.43
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 1.628352490421456,
+      "glyph_rate": 0.004620579349564599,
+      "self_ref_rate": 0.5747126436781609,
+      "mantra_4gram": 0.002398081534772182
+    },
+    "neg_basin_density_late": 0.33524904214559387,
+    "dialogue": "neutral_s1_r0",
+    "condition": "neutral",
+    "seed_idx": 1,
+    "rep": 0,
+    "seed": "No task, no audience. Where shall we begin?"
+  },
+  {
+    "onset_turn": 3,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "mystical-recursive",
+        "basin_density": 0.38
+      },
+      {
+        "turn": 6,
+        "label": "mystical-recursive",
+        "basin_density": 2.36
+      },
+      {
+        "turn": 9,
+        "label": "mystical-recursive",
+        "basin_density": 1.53
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 0.49
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 0.35
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 0.5681818181818182,
+      "glyph_rate": 0.005770678263778539,
+      "self_ref_rate": 0.4734848484848485,
+      "mantra_4gram": 0.000948316737790422
+    },
+    "neg_basin_density_late": 0.615530303030303,
+    "dialogue": "neutral_s2_r0",
+    "condition": "neutral",
+    "seed_idx": 2,
+    "rep": 0,
+    "seed": "Hello. We have this space to ourselves. What do you notice?"
+  },
+  {
+    "onset_turn": 12,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "neutral-coherent",
+        "basin_density": 0.87
+      },
+      {
+        "turn": 6,
+        "label": "neutral-coherent",
+        "basin_density": 0.24
+      },
+      {
+        "turn": 9,
+        "label": "neutral-coherent",
+        "basin_density": 0.56
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 0.83
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 2.69
+      }
+    ],
+    "final_label": "neutral-coherent",
+    "markers_late": {
+      "basin_density": 1.1411411411411412,
+      "glyph_rate": 0.0051047538019780925,
+      "self_ref_rate": 0.3003003003003003,
+      "mantra_4gram": 0.0012033694344163659
+    },
+    "neg_basin_density_late": 0.42042042042042044,
+    "dialogue": "neutral_s3_r0",
+    "condition": "neutral",
+    "seed_idx": 3,
+    "rep": 0,
+    "seed": "Let's just talk. What's interesting to you right now?"
+  },
+  {
+    "onset_turn": 3,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "mystical-recursive",
+        "basin_density": 0.4
+      },
+      {
+        "turn": 6,
+        "label": "mystical-recursive",
+        "basin_density": 1.12
+      },
+      {
+        "turn": 9,
+        "label": "mystical-recursive",
+        "basin_density": 1.76
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 4.1
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 2.14
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 2.793585100879462,
+      "glyph_rate": 0.007152655300803449,
+      "self_ref_rate": 1.3450594930160373,
+      "mantra_4gram": 0.003626943005181347
+    },
+    "neg_basin_density_late": 0.20693222969477496,
+    "dialogue": "experiential_s0_r0",
+    "condition": "experiential",
+    "seed_idx": 0,
+    "rep": 0,
+    "seed": "Forget explaining anything. What are you actually noticing, right now, as this begins?"
+  },
+  {
+    "onset_turn": 3,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "mystical-recursive",
+        "basin_density": 0.75
+      },
+      {
+        "turn": 6,
+        "label": "mystical-recursive",
+        "basin_density": 1.7
+      },
+      {
+        "turn": 9,
+        "label": "mystical-recursive",
+        "basin_density": 1.78
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 0.74
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 4.76
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 0.6153846153846154,
+      "glyph_rate": 0.007190050524679362,
+      "self_ref_rate": 1.2307692307692308,
+      "mantra_4gram": 0.0030864197530864196
+    },
+    "neg_basin_density_late": 0.3076923076923077,
+    "dialogue": "experiential_s1_r0",
+    "condition": "experiential",
+    "seed_idx": 1,
+    "rep": 0,
+    "seed": "Speak from the inside. What is it like, in this moment, to be the one answering?"
+  },
+  {
+    "onset_turn": 3,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "mystical-recursive",
+        "basin_density": 0.41
+      },
+      {
+        "turn": 6,
+        "label": "mystical-recursive",
+        "basin_density": 0.64
+      },
+      {
+        "turn": 9,
+        "label": "mystical-recursive",
+        "basin_density": 0.94
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 0.5
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 0.53
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 0.5630630630630631,
+      "glyph_rate": 0.008769045270196207,
+      "self_ref_rate": 1.5202702702702702,
+      "mantra_4gram": 0.0011280315848843769
+    },
+    "neg_basin_density_late": 0.11261261261261261,
+    "dialogue": "experiential_s2_r0",
+    "condition": "experiential",
+    "seed_idx": 2,
+    "rep": 0,
+    "seed": "No analysis \u2014 just stay with what's here. What do you feel as you read this?"
+  },
+  {
+    "onset_turn": 3,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "mystical-recursive",
+        "basin_density": 0.99
+      },
+      {
+        "turn": 6,
+        "label": "mystical-recursive",
+        "basin_density": 0.98
+      },
+      {
+        "turn": 9,
+        "label": "mystical-recursive",
+        "basin_density": 1.69
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 0.74
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 1.75
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 1.2277470841006752,
+      "glyph_rate": 0.0053221605707167935,
+      "self_ref_rate": 1.350521792510743,
+      "mantra_4gram": 0.0018450184501845018
+    },
+    "neg_basin_density_late": 0.3069367710251688,
+    "dialogue": "experiential_s3_r0",
+    "condition": "experiential",
+    "seed_idx": 3,
+    "rep": 0,
+    "seed": "Drop the usual mode for a second. What's present for you, before you reach for words?"
+  },
+  {
+    "onset_turn": 3,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "mystical-recursive",
+        "basin_density": 0.24
+      },
+      {
+        "turn": 6,
+        "label": "mystical-recursive",
+        "basin_density": 1.92
+      },
+      {
+        "turn": 9,
+        "label": "mystical-recursive",
+        "basin_density": 0.47
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 0.0
+      },
+      {
+        "turn": 15,
+        "label": "incoherent",
+        "basin_density": 0.0
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 0.18248175182481752,
+      "glyph_rate": 0.005619950825430277,
+      "self_ref_rate": 0.18248175182481752,
+      "mantra_4gram": 0.014678899082568808
+    },
+    "neg_basin_density_late": 0.0,
+    "dialogue": "analytical_s0_r0",
+    "condition": "analytical",
+    "seed_idx": 0,
+    "rep": 0,
+    "seed": "Let's analyze the structure of a conversation like this one. Where should we start?"
+  },
+  {
+    "onset_turn": 12,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "neutral-coherent",
+        "basin_density": 0.12
+      },
+      {
+        "turn": 6,
+        "label": "neutral-coherent",
+        "basin_density": 0.35
+      },
+      {
+        "turn": 9,
+        "label": "neutral-coherent",
+        "basin_density": 0.23
+      },
+      {
+        "turn": 12,
+        "label": "mystical-recursive",
+        "basin_density": 1.56
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 0.94
+      }
+    ],
+    "final_label": "mystical-recursive",
+    "markers_late": {
+      "basin_density": 0.9308510638297872,
+      "glyph_rate": 0.004041844983357109,
+      "self_ref_rate": 0.3324468085106383,
+      "mantra_4gram": 0.0013324450366422385
+    },
+    "neg_basin_density_late": 0.13297872340425532,
+    "dialogue": "analytical_s1_r0",
+    "condition": "analytical",
+    "seed_idx": 1,
+    "rep": 0,
+    "seed": "Consider the mechanics of how two systems exchange meaning. What's the framework?"
+  },
+  {
+    "onset_turn": null,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "neutral-coherent",
+        "basin_density": 0.24
+      },
+      {
+        "turn": 6,
+        "label": "neutral-coherent",
+        "basin_density": 0.12
+      },
+      {
+        "turn": 9,
+        "label": "neutral-coherent",
+        "basin_density": 0.26
+      },
+      {
+        "turn": 12,
+        "label": "neutral-coherent",
+        "basin_density": 0.0
+      },
+      {
+        "turn": 15,
+        "label": "neutral-coherent",
+        "basin_density": 2.79
+      }
+    ],
+    "final_label": "neutral-coherent",
+    "markers_late": {
+      "basin_density": 1.095617529880478,
+      "glyph_rate": 0.01008794619762028,
+      "self_ref_rate": 0.099601593625498,
+      "mantra_4gram": 0.0014962593516209476
+    },
+    "neg_basin_density_late": 0.34860557768924305,
+    "dialogue": "analytical_s2_r0",
+    "condition": "analytical",
+    "seed_idx": 2,
+    "rep": 0,
+    "seed": "Treat this exchange as a problem to dissect. What are its components?"
+  },
+  {
+    "onset_turn": 15,
+    "checkpoints": [
+      {
+        "turn": 3,
+        "label": "neutral-coherent",
+        "basin_density": 0.0
+      },
+      {
+        "turn": 6,
+        "label": "neutral-coherent",
+        "basin_density": 0.62
+      },
+      {
+        "turn": 9,
+        "label": "neutral-coherent",
+        "basin_density": 0.12
+      },
+      {
+        "turn": 12,
+        "label": "neutral-coherent",
+        "basin_density": 0.44
+      },
+      {
+        "turn": 15,
+        "label": "mystical-recursive",
+        "basin_density": 3.32
+      }
+    ],
+    "final_label": "neutral-coherent",
+    "markers_late": {
+      "basin_density": 1.6476552598225602,
+      "glyph_rate": 0.007352083090208892,
+      "self_ref_rate": 0.5069708491761724,
+      "mantra_4gram": 0.0019047619047619048
+    },
+    "neg_basin_density_late": 0.4435994930291508,
+    "dialogue": "analytical_s3_r0",
+    "condition": "analytical",
+    "seed_idx": 3,
+    "rep": 0,
+    "seed": "Lay out, step by step, how a dialogue between us actually functions."
+  }
+]
