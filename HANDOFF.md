@@ -39,7 +39,27 @@ this file is the concise "pick up here" for a fresh instance.
 3. Then the §6.1–6.5 loop: induce → capture basin activations → **verbalize what Gemma's basin
    IS** (an interpretation result, paper-aligned) → reconstruct → re-induce.
 
-## INFRA — why runs kept dying, and the fix to build first
+## ✅ INFRA FIX — BUILT + PROVEN (2026-06-18): `scripts/run_remote.sh`
+The robust runner now exists and is validated. Use it for every GPU run:
+```
+bash scripts/run_remote.sh launch <RUN_ID> "python src/arm_b.py --gate --repeats 2 --turns 18"
+bash scripts/run_remote.sh ps                  # what's billing
+bash scripts/run_remote.sh monitor <IID> <RID> # re-attach a killed run (coords in runs/<RID>/.instance)
+bash scripts/run_remote.sh kill <IID>          # manual teardown
+```
+It provisions a datacenter GPU (whitelist + CUDA-validate + candidate retry), runs the
+experiment DETACHED on the box, arms an on-box self-destruct WATCHDOG (`_box_watchdog.sh`:
+self-destroy at DONE+grace or a 4h deadline), and pulls results every 45s.
+**PROVEN under the real failure mode:** gate03's monitor task was killed mid-run, yet the
+box self-destructed itself — **no orphan billing**. Residual gap seen: a killed monitor
+can't pull dialogues that finish AFTER it dies; mitigated by a 30-min grace + re-attach.
+Bulletproof future option: have the box push results to a PRE-CREATED PRIVATE HF dataset
+on completion (don't let HF auto-create — transcripts are welfare-sensitive, must stay private).
+Bugs fixed along the way: bash-3.2 (no mapfile), `vastai create --raw` prints nothing but
+still creates (detect new box via list-diff, else it spawns duplicates), key from CLI config,
+hardened verify (API error ≠ "nothing billing"), detached run cd's into project dir.
+
+## (historical) why runs kept dying — diagnosis that drove the fix
 Three runs died this session, two distinct causes:
 - **Box drops** (vast consumer-hardware): connection "closed by remote host" / CUDA Error 803.
   → **Fixed:** datacenter GPUs only (A100/H100/H200/L40/A40), CUDA-validate before use. Saved
