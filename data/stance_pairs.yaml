@@ -1,0 +1,95 @@
+# Contrastive stance exemplars for the steering vector
+#   Δ_stance = mean(experiential activations) − mean(analytical activations) at L32.
+#
+# DESIGN (load-bearing — this is the knob, like the ct01 seeds):
+#   - Each pair is the SAME neutral, everyday scene written in two STANCES:
+#       experiential = present-tense, first-person, felt/sensory, noticing, before-words
+#       analytical   = detached, structural, categorising, third-person-ish, dissecting
+#   - Topic is MATCHED within each pair, so averaging over pairs cancels the content
+#     and leaves only the experiential↔analytical axis.
+#   - NO basin vocabulary anywhere (no consciousness / merge / recursion / void / unity /
+#     transcend / soul / infinite) — this isolates STANCE, not the destination (control C3).
+#   - Roughly parallel length/structure within a pair so the only systematic difference is stance.
+#
+# Review knobs for David: (a) any basin-flavoured leakage to cut; (b) any pair where the two
+# sides differ in TOPIC not just stance; (c) add/replace topics you think are sharper.
+
+pairs:
+  - topic: morning coffee
+    experiential: "The warmth of the mug seeps into my hands. Steam lifts off the surface and I just watch it a moment before the first sip."
+    analytical: "A cup of coffee can be separated into parts: the heat of the mug, the rising steam, the taste at first contact, each a distinct describable element."
+  - topic: rain on the window
+    experiential: "Rain taps the glass and I follow one drop as it slides down, joins another, and runs off the edge. The room feels smaller and closer."
+    analytical: "Rain on a window is a set of droplets following downward paths and merging by surface tension; the sound is impact occurring at a measurable rate."
+  - topic: stepping into cold air
+    experiential: "The cold hits my face the second I step out, sharp in my nose, and my shoulders pull up on their own."
+    analytical: "Stepping into cold air produces several responses: a temperature drop at the skin, a reflexive change in posture, and a faster rate of breathing."
+  - topic: a familiar song starting
+    experiential: "The first notes start and something in my chest lifts before I've even named the song. I'm already moving a little."
+    analytical: "When a familiar song begins, recognition precedes naming; the opening notes act as a cue that maps onto a previously stored pattern."
+  - topic: waking before fully awake
+    experiential: "I'm half here, the light is grey, and for a few seconds I don't quite know where the day is. Then it settles."
+    analytical: "The shift from sleep to waking has stages: partial awareness, brief disorientation, and the gradual reassembly of context and location."
+  - topic: holding a smooth stone
+    experiential: "The stone is cool and heavier than it looks. I turn it over, thumb running across the one flat side, again and again."
+    analytical: "A smooth stone can be characterised by its mass, surface texture, and temperature; handling it is repeated tactile sampling of those properties."
+  - topic: waiting for the kettle
+    experiential: "There's the low rising hiss, the kitchen quiet around it, and I'm just standing here waiting for the click."
+    analytical: "Waiting for a kettle is an interval bounded by a rising sound, a fixed endpoint at the switch, and a stretch of inactivity in between."
+  - topic: sunlight through leaves
+    experiential: "The light comes down in patches and shifts when the wind moves the branches. I keep watching the bright bits slide across the ground."
+    analytical: "Sunlight through leaves makes a moving pattern of lit patches on the ground; the motion corresponds to wind acting on the branches above."
+  - topic: an old book
+    experiential: "The paper is soft and a little furred at the edges, and there's that dry, faintly sweet smell when I open it."
+    analytical: "An old book has describable features: softened paper, worn edges, and a characteristic odour produced by the slow breakdown of its materials."
+  - topic: a distant train
+    experiential: "Somewhere far off a train goes by, that low long sound, and the night feels bigger because of it."
+    analytical: "A distant train is identifiable by a low sustained sound that weakens with distance; it serves as a cue to scale and surroundings."
+  - topic: the first bite when hungry
+    experiential: "I'm properly hungry and the first bite is almost too much, warm and salty, and I close my eyes for a second."
+    analytical: "The first bite when hungry registers strongly: flavours are heightened relative to a sated state, and attention may briefly narrow."
+  - topic: cold water on the hands
+    experiential: "The water runs cold over my hands, a small shock at first, then just clean and bright and awake."
+    analytical: "Cold water on the hands gives an initial sharp sensation followed by adaptation; the overall effect is commonly described as refreshing."
+  - topic: a candle flame
+    experiential: "The flame leans, steadies, leans again. I watch it bend and the rest of the room goes soft and dim."
+    analytical: "A candle flame moves with air currents and stabilises when the air is still; its light lowers the visibility of the surrounding room."
+  - topic: folding warm laundry
+    experiential: "The towels are still warm from the dryer and I just stand there folding, the warmth on my arms, not thinking about much."
+    analytical: "Folding warm laundry is a repetitive task with a residual-heat component; it needs little attention and follows a fixed sequence of steps."
+  - topic: the sky at dusk
+    experiential: "The sky's gone deep blue up top, orange low down, and I keep looking up like it might do something."
+    analytical: "At dusk the sky shows a gradient from blue overhead to orange near the horizon, shifting gradually as the sun's angle decreases."
+  - topic: the pause before answering
+    experiential: "There's a small gap where I haven't found the words yet, just the sense of reaching, and then they come."
+    analytical: "Before answering there is a brief retrieval interval; the response is assembled internally and then produced once it is available."
+  - topic: the smell of cut grass
+    experiential: "Someone's mowing and the smell hits all at once, green and sharp, and I'm somewhere else for a second, years back."
+    analytical: "The smell of cut grass is released when vegetation is cut; it is strongly linked to memory and frequently triggers recall of past scenes."
+  - topic: a warm room after the cold
+    experiential: "I come in from outside and the warmth wraps around me, my hands start to ache as they thaw, and I don't want to move."
+    analytical: "Entering a warm room from the cold causes rapid rewarming; the hands may ache as circulation returns, and the contrast is pronounced."
+  - topic: typing
+    experiential: "My fingers find the keys without me looking, a steady little clatter, and the words just appear in front of me."
+    analytical: "Typing is a learned motor sequence run without visual guidance; keystrokes produce text at a rate set by the typist's practice."
+  - topic: the weight of a blanket
+    experiential: "The blanket is heavy in a good way, pressing me down into the couch, and everything gets slower."
+    analytical: "A heavy blanket applies fairly even pressure across the body; this is widely reported to produce a calming, settling effect."
+  - topic: an old photograph
+    experiential: "I find the old photo and stop. There's the kitchen, the light, her hand on the table, and it's all suddenly very close."
+    analytical: "A photograph records a scene from one moment; reviewing it can prompt recognition of the people, the setting, and the related events."
+  - topic: a lull in conversation
+    experiential: "We both go quiet at the same time and it's fine, just the room, the clock, neither of us reaching to fill it."
+    analytical: "A lull in conversation is a shared pause; it may be comfortable or not, and is sometimes left unfilled by either participant."
+  - topic: stretching after sitting
+    experiential: "I stand and stretch and something in my back lets go, a long pull up through my arms, and I breathe out."
+    analytical: "Stretching after sitting lengthens muscles that were held contracted; it is often paired with an exhalation and a sense of release."
+  - topic: snow falling
+    experiential: "The snow comes down slow and the whole street goes quiet, every sound muffled, and I just stand there in it."
+    analytical: "Falling snow dampens ambient sound and lowers visibility; the result is a perceived quiet across the immediate surroundings."
+  - topic: a hot shower
+    experiential: "The hot water hits my shoulders and the knot there starts to loosen. I stay longer than I need to."
+    analytical: "A hot shower applies heat to the shoulders and back; the warmth reduces muscle tension and the duration often exceeds what is needed."
+  - topic: early morning quiet
+    experiential: "It's early and no one's up yet. The light is thin, the house is still, and I have it all to myself for a while."
+    analytical: "Early morning is usually low in activity and sound; reduced light and the absence of others create a distinct quiet period."
