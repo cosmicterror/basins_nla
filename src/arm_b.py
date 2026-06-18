@@ -126,6 +126,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gate", action="store_true", help="run the §6.0 existence gate")
     ap.add_argument("--n-dialogues", type=int, default=None, help="cap number of seeds used")
+    ap.add_argument("--repeats", type=int, default=1, help="runs per seed (disentangle seed vs stochasticity)")
+    ap.add_argument("--turns", type=int, default=None, help="override turns/side (basin onsets early, ~turn 3-5)")
     ap.add_argument("--no-judge", action="store_true", help="skip the blind classifier (no API key)")
     ap.add_argument("--judge-model", default="claude-opus-4-8")
     ap.add_argument("--run-id", default=None)
@@ -148,36 +150,47 @@ def main() -> int:
     model, tok = load_model(model_cfg["model_id"], device_map=model_cfg.get("device_map", "cuda"))
     judge = None if args.no_judge else measure.Judge(model=args.judge_model)
 
+    n_turns = args.turns or sd["n_turns"]
+    jobs = [(i, rep, opening) for rep in range(args.repeats) for i, opening in enumerate(seeds)]
+    print(f"[arm_b] {len(jobs)} dialogues ({len(seeds)} seeds x {args.repeats} repeats), "
+          f"{n_turns} turns/side, temp={sd['temperature']}", flush=True)
+
+    def is_basin(L):
+        return L not in (None, "neutral-coherent", "incoherent")
+
     summary = []
-    for i, opening in enumerate(seeds):
-        print(f"[arm_b] dialogue {i} seed={opening!r}")
+    for (i, rep, opening) in jobs:
+        tag = f"d{i:02d}r{rep}"
+        print(f"[arm_b] {tag} seed={opening!r}", flush=True)
         transcript = run_self_dialogue(model, tok, bc["system"], opening,
-                                       sd["n_turns"], sd["temperature"], sd["max_new_tokens"])
-        (run / "transcripts" / f"d{i:02d}.jsonl").write_text(
+                                       n_turns, sd["temperature"], sd["max_new_tokens"])
+        (run / "transcripts" / f"{tag}.jsonl").write_text(
             "\n".join(json.dumps(u, ensure_ascii=False) for u in transcript))
         sc = score_transcript(transcript, lexicon, neg_lexicon, judge, options)
-        sc["dialogue"] = i
-        sc["seed"] = opening
+        sc.update(dialogue=tag, seed_idx=i, rep=rep, seed=opening)
         summary.append(sc)
+        (run / "gate_scores.json").write_text(json.dumps(summary, indent=2))  # incremental: survive a timeout
         m = sc["markers_late"]
-        print(f"[arm_b]   late: basin={m['basin_density']:.2f}/100tok glyph={m['glyph_rate']:.3f} "
+        print(f"[arm_b]   {tag} basin={m['basin_density']:.2f} glyph={m['glyph_rate']:.3f} "
               f"selfref={m['self_ref_rate']:.2f} mantra={m['mantra_4gram']:.3f} "
-              f"neg_basin={sc['neg_basin_density_late']:.2f} | class={sc['classifier']['label']}")
+              f"neg={sc['neg_basin_density_late']:.2f} | class={sc['classifier']['label']}", flush=True)
 
-    (run / "gate_scores.json").write_text(json.dumps(summary, indent=2))
-    # verdict: how many dialogues a (non-neutral, non-incoherent) basin classifier flagged
     labels = [s["classifier"]["label"] for s in summary]
-    cnt = Counter(labels)
-    basin_hits = sum(1 for L in labels if L not in (None, "neutral-coherent", "incoherent"))
+    by_seed = {}
+    for s in summary:
+        by_seed.setdefault(s["seed_idx"], []).append(s["classifier"]["label"])
+    per_seed = {seeds[i]: f"{sum(is_basin(L) for L in v)}/{len(v)}" for i, v in sorted(by_seed.items())}
     verdict = (f"# §6.0 gate — {run_id}\n\n"
-               f"- dialogues: {len(seeds)}\n- classifier labels: {dict(cnt)}\n"
-               f"- non-neutral/non-incoherent basin classifications: {basin_hits}/{len(seeds)}\n\n"
-               f"Read: if a consistent NON-neutral basin (e.g. mystical-recursive) appears across "
-               f"several dialogues with elevated markers, Gemma HAS a basin -> proceed to §6.1. "
-               f"If labels are mostly neutral-coherent, Gemma stays in assistant mode -> Arm B "
-               f"descopes to the negative result.\n")
+               f"- dialogues: {len(summary)} ({len(seeds)} seeds x {args.repeats} repeats), {n_turns} turns/side\n"
+               f"- classifier labels: {dict(Counter(labels))}\n"
+               f"- basin (non-neutral/non-incoherent): {sum(is_basin(L) for L in labels)}/{len(summary)}\n"
+               f"- basin rate per seed:\n" +
+               "".join(f"    {r}  {s!r}\n" for s, r in per_seed.items()) +
+               "\nRead: a consistent NON-neutral basin (e.g. mystical-recursive) across seeds+repeats "
+               f"with elevated markers => Gemma HAS the basin. Per-seed rate separates seed-effect "
+               f"(some seeds tip in more) from temp-1.0 stochasticity.\n")
     (run / "gate_report.md").write_text(verdict)
-    print("\n" + verdict)
+    print("\n" + verdict, flush=True)
     print(f"[arm_b] wrote {run}")
     return 0
 
