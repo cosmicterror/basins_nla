@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+# scripts/run_remote.sh — robust, self-healing vast.ai runner for basins_nla.
+#
+# WHY THIS EXISTS: earlier runs died not on the GPU but because the *local*
+# orchestration process got killed (interface glitch / disconnect), and box
+# teardown + result-saving were tied to that process. This runner removes that
+# coupling. Three independent safety nets:
+#   1. The experiment runs DETACHED on the box (setsid) -> survives SSH drops.
+#   2. A self-destruct WATCHDOG is armed ON the box (_box_watchdog.sh) -> the box
+#      tears itself down even if every local watcher dies. No orphan billing, ever.
+#   3. Results are pulled INCREMENTALLY (every PULL_EVERY s) -> a killed monitor
+#      loses at most the last few seconds of output.
+# => Safe to Ctrl-C, safe to run as a Claude background task, safe to run in your
+#    own terminal. Datacenter GPUs only (consumer cards were the other failure mode).
+#
+# USAGE
+#   bash scripts/run_remote.sh launch  <RUN_ID> "<command>"   # provision+run+pull+destroy
+#   bash scripts/run_remote.sh monitor <IID> <RUN_ID>         # re-attach if launcher died
+#   bash scripts/run_remote.sh ps                             # what's billing right now
+#   bash scripts/run_remote.sh kill    <IID>                  # destroy + verify
+#
+# The <command> must accept --run-id (arm_a.py / arm_b.py do); it is appended
+# automatically so outputs land in runs/<RUN_ID>/ on the box.
+# EXAMPLE (confirmatory §6.0 gate):
+#   bash scripts/run_remote.sh launch gate03 "python src/arm_b.py --gate --repeats 2 --turns 18"
+set -uo pipefail
+
+# ── config (override via env) ──────────────────────────────────────────────────
+VAST_KEY_FILE="${VAST_KEY_FILE:-$HOME/.config/vastai/vast_api_key}"   # same key the vastai CLI uses
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/vastai}"
+IMAGE="${IMAGE:-pytorch/pytorch:2.4.1-cuda12.4-cudnn9-runtime}"
+DISK="${DISK:-50}"
+GPU_RAM_MIN="${GPU_RAM_MIN:-44}"            # MB threshold passed to search (>=44GB fits Gemma-12B)
+MAX_HOURS="${MAX_HOURS:-4}"                 # absolute self-destruct deadline (hard cost cap)
+GRACE_SEC="${GRACE_SEC:-600}"              # box waits this long after DONE before self-destruct
+PULL_EVERY="${PULL_EVERY:-45}"            # incremental result pull cadence
+PROJ="/workspace/basins_nla"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VAST_KEY="$(cat "$VAST_KEY_FILE" 2>/dev/null || true)"
+[ -z "$VAST_KEY" ] && { printf '\033[31mFATAL: no vast.ai API key at %s (set one: vastai set api-key <KEY>)\033[0m\n' "$VAST_KEY_FILE" >&2; exit 1; }
+DC_RE='^(A100|A800|H100|H200|H800|L40|L40S|A40)'   # datacenter whitelist (see feedback-vast-gpu-choice)
+
+SSHOPTS=(-i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null
+         -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=20 -o LogLevel=ERROR)
+
+log(){ printf '\033[36m[%s]\033[0m %s\n' "$(date +%H:%M:%S)" "$*"; }
+err(){ printf '\033[31m[%s] %s\033[0m\n' "$(date +%H:%M:%S)" "$*" >&2; }
+
+# ── vast API helpers (python: robust JSON, no jq dependency) ────────────────────
+list_instances(){ python3 - "$VAST_KEY" <<'PY'
+import sys,urllib.request,urllib.parse,json
+try:
+    d=json.load(urllib.request.urlopen("https://console.vast.ai/api/v0/instances/?"+
+        urllib.parse.urlencode({"api_key":sys.argv[1],"owner":"me"}),timeout=60)).get("instances",[])
+    for i in d: print(i["id"], i.get("actual_status"), (i.get("gpu_name") or "").replace(" ","_"), i.get("dph_total"))
+except Exception as e:
+    print("LISTERR", e, file=sys.stderr); sys.exit(3)
+PY
+}
+destroy_instance(){ python3 - "$1" "$VAST_KEY" <<'PY'
+import sys,urllib.request,urllib.parse,json
+iid,key=sys.argv[1],sys.argv[2]
+req=urllib.request.Request("https://console.vast.ai/api/v0/instances/%s/?%s"%(iid,
+    urllib.parse.urlencode({"api_key":key})),method="DELETE")
+try: print("destroy",iid,"->",json.load(urllib.request.urlopen(req,timeout=60)).get("success"))
+except Exception as e: print("destroy-err",iid,e)
+PY
+}
+verify_clean(){
+  local out rc; out=$(list_instances 2>/dev/null); rc=$?
+  if [ "$rc" -ne 0 ]; then err "⚠️ could NOT verify instance state (API error) — CHECK MANUALLY: vastai show instances"; return; fi
+  if [ -z "$out" ]; then log "✅ no instances on the account — nothing billing"; else
+    err "⚠️ instances still present:"; printf '%s\n' "$out" >&2
+    err "   destroy with: bash scripts/run_remote.sh kill <id>"; fi
+}
+
+# ── provisioning ────────────────────────────────────────────────────────────────
+pick_candidates(){  # N -> lines "offer_id gpu_name dph"
+  vastai search offers \
+    "num_gpus=1 gpu_ram>=${GPU_RAM_MIN} disk_space>=${DISK} reliability>0.98 rentable=true verified=true cuda_vers>=12.1 inet_down>=200" \
+    -o 'dph+' --raw 2>/dev/null | python3 -c "
+import sys,json,re
+N=int('${1:-4}'); dc=re.compile('${DC_RE}'); out=[]
+for o in json.load(sys.stdin):
+    gn=(o.get('gpu_name') or '').replace(' ','_')
+    if dc.match(gn) and (o.get('inet_down') or 0)>=1000:
+        out.append('%s %s %.3f'%(o['id'],gn,o.get('dph_total',0)))
+print('\n'.join(out[:N]))
+"
+}
+create(){  # offer_id -> iid
+  vastai create instance "$1" --image "$IMAGE" --disk "$DISK" --ssh --raw 2>/dev/null | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin); print(d.get('new_contract','') if d.get('success') else '')
+except Exception: print('')
+"
+}
+ssh_hostport(){  # iid -> "host port"
+  local url; url=$(vastai ssh-url "$1" 2>/dev/null)
+  [[ "$url" =~ ^ssh://root@([^:]+):([0-9]+) ]] && echo "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
+}
+wait_ssh(){  # iid -> 0 when ssh answers
+  local iid="$1" hp host port
+  for _ in $(seq 1 45); do
+    hp=$(ssh_hostport "$iid"); host="${hp% *}"; port="${hp#* }"
+    if [ -n "$hp" ] && ssh "${SSHOPTS[@]}" -p "$port" "root@$host" true 2>/dev/null; then return 0; fi
+    sleep 10
+  done; return 1
+}
+cuda_ok(){  # host port
+  ssh "${SSHOPTS[@]}" -p "$2" "root@$1" \
+    "python -c 'import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)'" 2>/dev/null
+}
+
+# ── staging / launch ────────────────────────────────────────────────────────────
+stage_keys(){  # host port
+  local hftok anth
+  hftok=$(cat "$HOME/.cache/huggingface/token" 2>/dev/null)
+  anth=$(python3 -c "import os,re;m=re.search(r'ANTHROPIC_API_KEY=[\"\x27]?([A-Za-z0-9_\-]+)',open(os.path.expanduser('~/.zshrc')).read());print(m.group(1) if m else '')")
+  ssh "${SSHOPTS[@]}" -p "$2" "root@$1" "umask 077; cat > /root/.runenv" <<EOF
+export HF_TOKEN='$hftok'
+export ANTHROPIC_API_KEY='$anth'
+export HF_HUB_ENABLE_HF_TRANSFER=1
+export PYTHONUNBUFFERED=1
+EOF
+  ssh "${SSHOPTS[@]}" -p "$2" "root@$1" "umask 077; cat > /root/.vk" <<<"$VAST_KEY"
+}
+arm_watchdog(){  # iid host port run_id
+  local iid="$1" host="$2" port="$3" rid="$4"
+  local rundir="$PROJ/runs/$rid" deadline=$(( $(date +%s) + MAX_HOURS*3600 ))
+  scp "${SSHOPTS[@]}" -P "$port" "$REPO/scripts/_box_watchdog.sh" "root@$host:/workspace/watchdog.sh" >/dev/null 2>&1
+  ssh "${SSHOPTS[@]}" -p "$port" "root@$host" \
+    "mkdir -p '$rundir'; setsid bash /workspace/watchdog.sh $iid '$rundir' $deadline $GRACE_SEC >/workspace/watchdog.log 2>&1 </dev/null & echo ARMED"
+  log "watchdog armed: self-destruct at DONE+${GRACE_SEC}s or in ${MAX_HOURS}h (whichever first)"
+}
+setup_box(){  # host port
+  log "installing deps on box (transformers==4.57.1, accelerate, anthropic, hf_transfer)..."
+  ssh "${SSHOPTS[@]}" -p "$2" "root@$1" \
+    "pip install -q 'transformers==4.57.1' accelerate anthropic pyyaml safetensors numpy hf_transfer 2>&1 | tail -1"
+}
+stage_code(){  # host port
+  log "uploading code (src/ configs/ data/ scripts/)..."
+  tar czf - -C "$REPO" src configs data scripts | \
+    ssh "${SSHOPTS[@]}" -p "$2" "root@$1" "mkdir -p $PROJ && tar xzf - -C $PROJ"
+}
+launch_detached(){  # host port run_id cmd
+  local host="$1" port="$2" rid="$3" cmd="$4" rundir="$PROJ/runs/$3"
+  ssh "${SSHOPTS[@]}" -p "$port" "root@$host" \
+    "source /root/.runenv; mkdir -p '$rundir'; setsid bash -c '($cmd --run-id $rid > \"$rundir/run.log\" 2>&1; echo \$? > \"$rundir/EXIT\"; date +%s > \"$rundir/DONE\")' >/dev/null 2>&1 </dev/null & echo LAUNCHED"
+  log "experiment launched detached on box"
+}
+
+# ── monitoring ──────────────────────────────────────────────────────────────────
+pull_once(){  # host port run_id  (tar over ssh; tolerant of transient failure)
+  ssh "${SSHOPTS[@]}" -p "$2" "root@$1" "cd $PROJ && tar czf - runs/$3 2>/dev/null" 2>/dev/null \
+    | tar xzf - -C "$REPO" 2>/dev/null || true
+}
+monitor_loop(){  # iid host port run_id
+  local iid="$1" host="$2" port="$3" rid="$4" L="$REPO/runs/$4" gone=0
+  while true; do
+    pull_once "$host" "$port" "$rid"
+    if [ -f "$L/DONE" ]; then log "DONE detected — run finished"; break; fi
+    local inst; inst=$(list_instances 2>/dev/null)
+    if [ $? -eq 0 ] && ! grep -q "^$iid " <<<"$inst"; then
+      gone=$((gone+1)); [ $gone -ge 2 ] && { err "instance $iid gone (watchdog fired) — stopping monitor"; break; }
+    else gone=0; fi
+    local last; last=$(tail -n 1 "$L/run.log" 2>/dev/null); [ -n "$last" ] && printf '    %s\n' "$last"
+    sleep "$PULL_EVERY"
+  done
+}
+report(){  # run_id
+  local L="$REPO/runs/$1"
+  echo "════════════════════ RESULT: $1 ════════════════════"
+  echo "exit code: $(cat "$L/EXIT" 2>/dev/null || echo '? (run cut before completion)')"
+  [ -f "$L/gate_report.md" ] && { echo "──── gate_report.md ────"; cat "$L/gate_report.md"; }
+  echo "──── tail run.log ────"; tail -n 12 "$L/run.log" 2>/dev/null
+  echo "local results: runs/$1/"
+}
+
+# ── top-level commands ──────────────────────────────────────────────────────────
+launch_main(){
+  local rid="${1:-}"; shift || true; local cmd="${*:-}"
+  [ -z "$rid" ] || [ -z "$cmd" ] && { err 'usage: launch <RUN_ID> "<command>"'; exit 2; }
+  mapfile -t CANDS < <(pick_candidates 5)
+  [ "${#CANDS[@]}" -eq 0 ] && { err "no datacenter offers matched"; exit 1; }
+  local iid="" host="" port=""
+  for line in "${CANDS[@]}"; do
+    set -- $line; local off="$1" gpu="$2" dph="$3"
+    log "trying offer $off  ($gpu  \$$dph/hr)"
+    iid=$(create "$off"); [ -z "$iid" ] && { err "create failed; next"; continue; }
+    log "instance $iid created; waiting for SSH (up to ~7m)..."
+    if ! wait_ssh "$iid"; then err "no SSH; destroying $iid"; destroy_instance "$iid"; iid=""; continue; fi
+    local hp; hp=$(ssh_hostport "$iid"); host="${hp% *}"; port="${hp#* }"
+    if ! cuda_ok "$host" "$port"; then err "CUDA unavailable on $iid; destroying"; destroy_instance "$iid"; iid=""; continue; fi
+    log "box $iid ready: $gpu @ root@$host:$port (CUDA ok)"; break
+  done
+  [ -z "$iid" ] && { err "exhausted candidates without a good box"; exit 1; }
+  mkdir -p "$REPO/runs/$rid"; printf 'IID=%s\nHOST=%s\nPORT=%s\nGPU=%s\n' "$iid" "$host" "$port" "${gpu:-}" > "$REPO/runs/$rid/.instance"
+  stage_keys "$host" "$port"
+  arm_watchdog "$iid" "$host" "$port" "$rid"     # protected from here on, no matter what
+  setup_box "$host" "$port"
+  stage_code "$host" "$port"
+  launch_detached "$host" "$port" "$rid" "$cmd"
+  log "monitoring (pull every ${PULL_EVERY}s). Safe to Ctrl-C / disconnect — box self-destructs on its own."
+  monitor_loop "$iid" "$host" "$port" "$rid"
+  log "final pull + destroy"
+  pull_once "$host" "$port" "$rid"
+  destroy_instance "$iid"; sleep 5; verify_clean
+  report "$rid"
+}
+
+cmd="${1:-}"; shift 2>/dev/null || true
+case "$cmd" in
+  launch)  launch_main "$@" ;;
+  monitor) iid="${1:-}"; rid="${2:-}"; [ -z "$iid" ] || [ -z "$rid" ] && { err "usage: monitor <IID> <RUN_ID>"; exit 2; }
+           hp=$(ssh_hostport "$iid"); host="${hp% *}"; port="${hp#* }"
+           [ -z "$hp" ] && { err "can't resolve SSH for $iid"; exit 1; }
+           monitor_loop "$iid" "$host" "$port" "$rid"; pull_once "$host" "$port" "$rid"
+           destroy_instance "$iid"; sleep 5; verify_clean; report "$rid" ;;
+  ps)      out=$(list_instances 2>/dev/null); rc=$?
+           if [ "$rc" -ne 0 ]; then err "API error — could not list instances"; exit 1
+           elif [ -z "$out" ]; then echo "(no instances — nothing billing)"; else printf '%s\n' "$out"; fi ;;
+  kill)    [ -z "${1:-}" ] && { err "usage: kill <IID>"; exit 2; }; destroy_instance "$1"; sleep 3; verify_clean ;;
+  *)       echo 'usage: run_remote.sh {launch <RUN_ID> "<cmd>" | monitor <IID> <RUN_ID> | ps | kill <IID>}'; exit 2 ;;
+esac
