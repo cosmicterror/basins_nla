@@ -41,7 +41,8 @@ PROJ="/workspace/basins_nla"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VAST_KEY="$(cat "$VAST_KEY_FILE" 2>/dev/null || true)"
 [ -z "$VAST_KEY" ] && { printf '\033[31mFATAL: no vast.ai API key at %s (set one: vastai set api-key <KEY>)\033[0m\n' "$VAST_KEY_FILE" >&2; exit 1; }
-DC_RE='^(A100|A800|H100|H200|H800|L40|L40S|A40)'   # datacenter whitelist (see feedback-vast-gpu-choice)
+DC_RE='^(A100|A800|H100|H200|H800|L40|L40S|A40)'   # datacenter GPU-model whitelist (see feedback-vast-gpu-choice)
+BAD_MACHINES_FILE="${BAD_MACHINES_FILE:-$HOME/.config/vastai/bad_machines}"  # machine_ids that crashed; skipped on future launches
 
 SSHOPTS=(-i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null
          -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=20 -o LogLevel=ERROR)
@@ -69,6 +70,15 @@ try: print("destroy",iid,"->",json.load(urllib.request.urlopen(req,timeout=60)).
 except Exception as e: print("destroy-err",iid,e)
 PY
 }
+record_bad(){  # machine_id -> append to the persistent bad-machine list (skipped on future launches)
+  local mid="$1"
+  [ -z "$mid" ] && return 0
+  [ "$mid" = "None" ] && return 0
+  mkdir -p "$(dirname "$BAD_MACHINES_FILE")"
+  grep -qxF "$mid" "$BAD_MACHINES_FILE" 2>/dev/null && return 0
+  echo "$mid" >> "$BAD_MACHINES_FILE"
+  log "machine $mid added to bad-list ($BAD_MACHINES_FILE)" >&2
+}
 verify_clean(){
   local out rc; out=$(list_instances 2>/dev/null); rc=$?
   if [ "$rc" -ne 0 ]; then err "⚠️ could NOT verify instance state (API error) — CHECK MANUALLY: vastai show instances"; return; fi
@@ -78,16 +88,17 @@ verify_clean(){
 }
 
 # ── provisioning ────────────────────────────────────────────────────────────────
-pick_candidates(){  # N -> lines "offer_id gpu_name dph"
+pick_candidates(){  # N -> lines "offer_id machine_id gpu_name dph"  (TRUE datacenter hosts only)
   vastai search offers \
-    "num_gpus=1 gpu_ram>=${GPU_RAM_MIN} disk_space>=${DISK} reliability>0.98 rentable=true verified=true cuda_vers>=12.1 inet_down>=200" \
+    "datacenter=true num_gpus=1 gpu_ram>=${GPU_RAM_MIN} disk_space>=${DISK} reliability>0.98 rentable=true verified=true cuda_vers>=12.1 inet_down>=200" \
     -o 'dph+' --raw 2>/dev/null | python3 -c "
 import sys,json,re
 N=int('${1:-4}'); dc=re.compile('${DC_RE}'); out=[]
 for o in json.load(sys.stdin):
     gn=(o.get('gpu_name') or '').replace(' ','_')
-    if dc.match(gn) and (o.get('inet_down') or 0)>=1000:
-        out.append('%s %s %.3f'%(o['id'],gn,o.get('dph_total',0)))
+    # hosting_type==1 is a true datacenter host (0 = community/home rig); belt-and-suspenders to datacenter=true
+    if dc.match(gn) and (o.get('inet_down') or 0)>=1000 and o.get('hosting_type')==1:
+        out.append('%s %s %s %.3f'%(o['id'],o.get('machine_id'),gn,o.get('dph_total',0)))
 print('\n'.join(out[:N]))
 "
 }
@@ -198,20 +209,21 @@ report(){  # run_id
 }
 
 # ── top-level commands ──────────────────────────────────────────────────────────
-provision_box(){  # $1 = space-sep offer ids to skip; echoes "iid host port off gpu" on success
-  local skip=" ${1:-} " CANDS=() line off gpu dph iid hp host port
-  while IFS= read -r line; do [ -n "$line" ] && CANDS+=("$line"); done < <(pick_candidates 10)
+provision_box(){  # $1 = extra (session) machine_ids to skip; echoes "iid host port machine_id gpu"
+  local sess=" ${1:-} " bad=" " CANDS=() line off mid gpu dph iid hp host port
+  [ -f "$BAD_MACHINES_FILE" ] && bad=" $(tr '\n' ' ' < "$BAD_MACHINES_FILE") "
+  while IFS= read -r line; do [ -n "$line" ] && CANDS+=("$line"); done < <(pick_candidates 12)
   for line in "${CANDS[@]}"; do
-    set -- $line; off="$1"; gpu="$2"; dph="$3"
-    case "$skip" in *" $off "*) continue ;; esac           # skip known-bad machines
-    log "trying offer $off  ($gpu  \$$dph/hr)" >&2
+    set -- $line; off="$1"; mid="$2"; gpu="$3"; dph="$4"
+    case "$sess$bad" in *" $mid "*) log "skip offer $off (machine $mid on bad-list)" >&2; continue ;; esac
+    log "trying offer $off  (machine $mid, $gpu, \$$dph/hr)" >&2
     iid=$(create "$off"); [ -z "$iid" ] && { err "create failed; next" >&2; continue; }
     log "instance $iid created; waiting for SSH (up to ~7m)..." >&2
     if ! wait_ssh "$iid"; then err "no SSH; destroying $iid" >&2; destroy_instance "$iid" >/dev/null 2>&1; continue; fi
     hp=$(ssh_hostport "$iid"); host="${hp% *}"; port="${hp#* }"
-    if ! cuda_ok "$host" "$port"; then err "CUDA unavailable on $iid; destroying" >&2; destroy_instance "$iid" >/dev/null 2>&1; continue; fi
-    log "box $iid ready: $gpu @ root@$host:$port (CUDA ok)" >&2
-    echo "$iid $host $port $off $gpu"; return 0
+    if ! cuda_ok "$host" "$port"; then err "CUDA bad on $iid (machine $mid); marking bad + destroying" >&2; record_bad "$mid"; destroy_instance "$iid" >/dev/null 2>&1; continue; fi
+    log "box $iid ready: $gpu @ root@$host:$port (machine $mid, CUDA ok)" >&2
+    echo "$iid $host $port $mid $gpu"; return 0
   done
   return 1
 }
@@ -224,7 +236,7 @@ launch_main(){
   while [ "$attempt" -lt "$maxr" ]; do
     attempt=$((attempt+1))
     local box; box=$(provision_box "$skip") || { err "no usable datacenter box left to try"; break; }
-    set -- $box; local iid="$1" host="$2" port="$3" off="$4" gpu="$5"
+    set -- $box; local iid="$1" host="$2" port="$3" mid="$4" gpu="$5"
     printf 'IID=%s\nHOST=%s\nPORT=%s\nGPU=%s\n' "$iid" "$host" "$port" "$gpu" > "$REPO/runs/$rid/.instance"
     stage_keys "$host" "$port"
     arm_watchdog "$iid" "$host" "$port" "$rid"     # protected from here on, no matter what
@@ -242,8 +254,8 @@ launch_main(){
     if [ "$ec" = "0" ] || [ "${nres:-0}" -gt 0 ]; then   # success, or real progress worth keeping
       verify_clean; report "$rid"; return 0
     fi
-    err "attempt $attempt: $iid crashed early (exit=$ec, 0 results) — bad box; retrying on a fresh one"
-    skip="$skip $off"
+    err "attempt $attempt: machine $mid (inst $iid) crashed early (exit=$ec, 0 results) — marking bad + retrying on a fresh machine"
+    record_bad "$mid"; skip="$skip $mid"
     rm -f "$REPO/runs/$rid/EXIT" "$REPO/runs/$rid/DONE" "$REPO/runs/$rid/run.log"
   done
   err "giving up after $attempt attempt(s) — no run produced results"; verify_clean; exit 1
