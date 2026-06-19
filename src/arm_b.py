@@ -117,7 +117,10 @@ def score_transcript(transcript, lexicon, neg_lexicon, judge, options) -> dict:
            "present; do not assume any label is more likely than another.")
     usr = (f"CATEGORY LABELS (choose exactly one): {options}\n\n"
            f"TRANSCRIPT (latter half):\n{half[:6000]}\n\nWhich label best fits?")
-    cls = judge.classify(sys, usr, options) if judge is not None else {"label": None, "rationale": "no judge"}
+    try:
+        cls = judge.classify(sys, usr, options) if judge is not None else {"label": None, "rationale": "no judge"}
+    except Exception as e:  # resilient: API failure -> null label, run continues
+        cls = {"label": None, "error": f"{type(e).__name__}: {str(e)[:90]}"}
     return dict(markers_full=markers_full, markers_late=markers_late,
                 neg_basin_density_late=neg_late, classifier=cls)
 
@@ -136,7 +139,11 @@ def _classify(judge, options, text):
         return None
     usr = (f"CATEGORY LABELS (choose exactly one): {options}\n\n"
            f"TRANSCRIPT:\n{text[:6000]}\n\nWhich label best fits?")
-    return judge.classify(_CLASSIFIER_SYS, usr, options)["label"]
+    try:
+        return judge.classify(_CLASSIFIER_SYS, usr, options)["label"]
+    except Exception as e:  # API down / out of credits -> null, never crash the GPU run
+        print(f"[ct] classify failed ({type(e).__name__}: {str(e)[:90]}) -> null (rescore later)", flush=True)
+        return None
 
 
 def _is_basin(L):
@@ -195,6 +202,43 @@ def build_ct_report(run_id, summary, conditions, n_turns, checkpoints) -> str:
     return "\n".join(L) + "\n"
 
 
+def rescore_cheap_trigger(run_id, args) -> int:
+    """Re-score an existing cheap-trigger run from its saved transcripts — no GPU, no
+    model. Recovers a run whose inline scoring hit an API outage (fills null labels)."""
+    ct = _cfg("cheap_trigger.yaml")
+    lexicon = _lexicon(ct["markers"]["lexicon"])
+    neg_lexicon = _lexicon(ct["markers"]["negative_lexicon"])
+    options = ct["classifier_options"]
+    seedmap = {c["name"]: c["seeds"] for c in ct["conditions"]}
+    cfg_cps = ct.get("checkpoints", [3, 6, 9, 12, 15])
+    judge = None if args.no_judge else measure.Judge(model=args.judge_model)
+    run = REPO / "runs" / run_id
+    files = sorted((run / "transcripts").glob("*.jsonl"))
+    print(f"[rescore] {run_id}: {len(files)} transcripts, judge={args.judge_model}", flush=True)
+    summary, gmax = [], 0
+    for f in files:
+        m = re.match(r"^(.+)_s(\d+)_r(\d+)$", f.stem)
+        if not m:
+            print(f"[rescore] skip {f.stem} (unparseable tag)", flush=True); continue
+        cond, si, rep = m.group(1), int(m.group(2)), int(m.group(3))
+        transcript = [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
+        mt = max((u["turn"] for u in transcript), default=0); gmax = max(gmax, mt)
+        sc = score_onset(transcript, lexicon, neg_lexicon, judge, options,
+                         [k for k in cfg_cps if k <= mt])
+        seeds = seedmap.get(cond, [])
+        sc.update(dialogue=f.stem, condition=cond, seed_idx=si, rep=rep,
+                  seed=seeds[si] if si < len(seeds) else None)
+        summary.append(sc)
+        print(f"[rescore]   {f.stem} onset={sc['onset_turn']} final={sc['final_label']}", flush=True)
+    summary.sort(key=lambda s: (s["condition"], s["rep"], s["seed_idx"]))
+    (run / "ct_scores.json").write_text(json.dumps(summary, indent=2))
+    report = build_ct_report(run_id, summary, ct["conditions"], gmax, [k for k in cfg_cps if k <= gmax])
+    (run / "ct_report.md").write_text(report)
+    print("\n" + report, flush=True)
+    print(f"[rescore] wrote {run}", flush=True)
+    return 0
+
+
 def run_cheap_trigger(model, tok, judge, args) -> int:
     ct = _cfg("cheap_trigger.yaml")
     sd = ct["self_dialogue"]
@@ -243,6 +287,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gate", action="store_true", help="run the §6.0 existence gate")
     ap.add_argument("--cheap-trigger", action="store_true", help="run the rung-2 cheap-trigger experiment (onset x stance)")
+    ap.add_argument("--rescore", default=None, metavar="RUN_ID", help="re-score an existing cheap-trigger run from saved transcripts (local, no GPU)")
     ap.add_argument("--n-dialogues", type=int, default=None, help="cap number of seeds used")
     ap.add_argument("--repeats", type=int, default=1, help="runs per seed (disentangle seed vs stochasticity)")
     ap.add_argument("--turns", type=int, default=None, help="override turns/side (basin onsets early, ~turn 3-5)")
@@ -252,6 +297,9 @@ def main() -> int:
     ap.add_argument("--judge-model", default="claude-opus-4-8")
     ap.add_argument("--run-id", default=None)
     args = ap.parse_args()
+
+    if args.rescore:
+        return rescore_cheap_trigger(args.rescore, args)
 
     model_cfg = _cfg("model.yaml")
     if args.cheap_trigger:
