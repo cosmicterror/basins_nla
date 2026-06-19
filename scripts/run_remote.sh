@@ -198,37 +198,55 @@ report(){  # run_id
 }
 
 # ── top-level commands ──────────────────────────────────────────────────────────
+provision_box(){  # $1 = space-sep offer ids to skip; echoes "iid host port off gpu" on success
+  local skip=" ${1:-} " CANDS=() line off gpu dph iid hp host port
+  while IFS= read -r line; do [ -n "$line" ] && CANDS+=("$line"); done < <(pick_candidates 10)
+  for line in "${CANDS[@]}"; do
+    set -- $line; off="$1"; gpu="$2"; dph="$3"
+    case "$skip" in *" $off "*) continue ;; esac           # skip known-bad machines
+    log "trying offer $off  ($gpu  \$$dph/hr)" >&2
+    iid=$(create "$off"); [ -z "$iid" ] && { err "create failed; next" >&2; continue; }
+    log "instance $iid created; waiting for SSH (up to ~7m)..." >&2
+    if ! wait_ssh "$iid"; then err "no SSH; destroying $iid" >&2; destroy_instance "$iid" >/dev/null 2>&1; continue; fi
+    hp=$(ssh_hostport "$iid"); host="${hp% *}"; port="${hp#* }"
+    if ! cuda_ok "$host" "$port"; then err "CUDA unavailable on $iid; destroying" >&2; destroy_instance "$iid" >/dev/null 2>&1; continue; fi
+    log "box $iid ready: $gpu @ root@$host:$port (CUDA ok)" >&2
+    echo "$iid $host $port $off $gpu"; return 0
+  done
+  return 1
+}
+
 launch_main(){
   local rid="${1:-}"; shift || true; local cmd="${*:-}"
   [ -z "$rid" ] || [ -z "$cmd" ] && { err 'usage: launch <RUN_ID> "<command>"'; exit 2; }
-  local CANDS=()                                   # bash 3.2 (macOS): no mapfile
-  while IFS= read -r line; do [ -n "$line" ] && CANDS+=("$line"); done < <(pick_candidates 5)
-  [ "${#CANDS[@]}" -eq 0 ] && { err "no datacenter offers matched"; exit 1; }
-  local iid="" host="" port=""
-  for line in "${CANDS[@]}"; do
-    set -- $line; local off="$1" gpu="$2" dph="$3"
-    log "trying offer $off  ($gpu  \$$dph/hr)"
-    iid=$(create "$off"); [ -z "$iid" ] && { err "create failed; next"; continue; }
-    log "instance $iid created; waiting for SSH (up to ~7m)..."
-    if ! wait_ssh "$iid"; then err "no SSH; destroying $iid"; destroy_instance "$iid"; iid=""; continue; fi
-    local hp; hp=$(ssh_hostport "$iid"); host="${hp% *}"; port="${hp#* }"
-    if ! cuda_ok "$host" "$port"; then err "CUDA unavailable on $iid; destroying"; destroy_instance "$iid"; iid=""; continue; fi
-    log "box $iid ready: $gpu @ root@$host:$port (CUDA ok)"; break
+  rm -rf "$REPO/runs/$rid"; mkdir -p "$REPO/runs/$rid"      # fresh launch (use `monitor` to re-attach a partial)
+  local skip="" attempt=0 maxr="${MAX_RUN_RETRIES:-4}"
+  while [ "$attempt" -lt "$maxr" ]; do
+    attempt=$((attempt+1))
+    local box; box=$(provision_box "$skip") || { err "no usable datacenter box left to try"; break; }
+    set -- $box; local iid="$1" host="$2" port="$3" off="$4" gpu="$5"
+    printf 'IID=%s\nHOST=%s\nPORT=%s\nGPU=%s\n' "$iid" "$host" "$port" "$gpu" > "$REPO/runs/$rid/.instance"
+    stage_keys "$host" "$port"
+    arm_watchdog "$iid" "$host" "$port" "$rid"     # protected from here on, no matter what
+    setup_box "$host" "$port"
+    stage_code "$host" "$port"
+    launch_detached "$host" "$port" "$rid" "$cmd"
+    log "attempt $attempt/$maxr — monitoring (pull every ${PULL_EVERY}s). Safe to Ctrl-C / disconnect; box keeps results."
+    log "** if this monitor is killed, RE-ATTACH: bash scripts/run_remote.sh monitor $iid $rid **"
+    monitor_loop "$iid" "$host" "$port" "$rid"
+    pull_once "$host" "$port" "$rid"
+    local ec nres
+    ec=$(cat "$REPO/runs/$rid/EXIT" 2>/dev/null || echo "?")
+    nres=$(ls "$REPO/runs/$rid/transcripts" 2>/dev/null | wc -l | tr -d ' ')
+    destroy_instance "$iid"; sleep 3
+    if [ "$ec" = "0" ] || [ "${nres:-0}" -gt 0 ]; then   # success, or real progress worth keeping
+      verify_clean; report "$rid"; return 0
+    fi
+    err "attempt $attempt: $iid crashed early (exit=$ec, 0 results) — bad box; retrying on a fresh one"
+    skip="$skip $off"
+    rm -f "$REPO/runs/$rid/EXIT" "$REPO/runs/$rid/DONE" "$REPO/runs/$rid/run.log"
   done
-  [ -z "$iid" ] && { err "exhausted candidates without a good box"; exit 1; }
-  mkdir -p "$REPO/runs/$rid"; printf 'IID=%s\nHOST=%s\nPORT=%s\nGPU=%s\n' "$iid" "$host" "$port" "${gpu:-}" > "$REPO/runs/$rid/.instance"
-  stage_keys "$host" "$port"
-  arm_watchdog "$iid" "$host" "$port" "$rid"     # protected from here on, no matter what
-  setup_box "$host" "$port"
-  stage_code "$host" "$port"
-  launch_detached "$host" "$port" "$rid" "$cmd"
-  log "monitoring (pull every ${PULL_EVERY}s). Safe to Ctrl-C / disconnect — the box KEEPS RUNNING and keeps its results."
-  log "** if this monitor is killed, RE-ATTACH to pull final results + destroy: bash scripts/run_remote.sh monitor $iid $rid **"
-  monitor_loop "$iid" "$host" "$port" "$rid"
-  log "final pull + destroy"
-  pull_once "$host" "$port" "$rid"
-  destroy_instance "$iid"; sleep 5; verify_clean
-  report "$rid"
+  err "giving up after $attempt attempt(s) — no run produced results"; verify_clean; exit 1
 }
 
 cmd="${1:-}"; shift 2>/dev/null || true
