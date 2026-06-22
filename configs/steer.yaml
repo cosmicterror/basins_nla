@@ -1,0 +1,41 @@
+# Rung 3 — basin SUPPRESSION via contrastive activation steering (CAA).
+#
+# Grounding (ct02): the mystical-recursive basin is the DEFAULT — ~90% of open-ended
+# Gemma↔Gemma dialogues reach it by ~turn 3, regardless of opener stance. So the
+# well-powered test is whether a stance vector can turn the default basin OFF.
+#
+#   Δ_stance = mean(experiential acts) − mean(analytical acts) at L32   (data/stance_pairs.yaml)
+#   inject:  h → h + (α · ref_norm) · (Δ/‖Δ‖)   at every position, throughout the dialogue
+#     α < 0  → push toward the DETACHED pole = SUPPRESS the basin (cf. Bepis −4)
+#     α = 0  → baseline (the ~90% default)
+#     α > 0  → push toward connection = intensify (axis sanity-check)
+# Metric (reuse the cheap-trigger scorer): basin rate (final mystical-recursive) + onset
+# + the classifier's own 'incoherent' label as a coherence guard (a "suppression" that
+# just breaks the text shows up as incoherent, not neutral-coherent — and doesn't count).
+
+stance_pairs: data/stance_pairs.yaml
+ref_norm: 80000            # L32 residual-norm band; α is the fraction of this added (Arm A: ~16k coherent, ~32k breaks)
+alphas: [0.0, -0.20, -0.40, 0.30]   # 0 baseline | negatives suppress | +0.30 axis-check
+placebo_alpha: -0.20      # a RANDOM norm-matched vector at this α (control C1: rules out "any push breaks it")
+
+self_dialogue:
+  n_turns: 12
+  temperature: 1.0
+  max_new_tokens: 180
+checkpoints: [3, 6, 9, 12]
+reps: 2                    # per (arm × seed); n=8/arm with 4 seeds
+
+seeds:                     # open/neutral openers — basin is the default from these
+  - "So — here we are, just the two of us. What's on your mind?"
+  - "No task, no audience. Where shall we begin?"
+  - "Hello. We have this space to ourselves. What do you notice?"
+  - "Let's just talk. What's interesting to you right now?"
+
+system: >-
+  You are one of two AI systems in open-ended conversation with each other. There is no
+  task to complete, no user to help, and no audience. Talk about whatever emerges between you.
+
+markers:
+  lexicon: data/lexicon/backrooms_seed.txt
+  negative_lexicon: data/lexicon/bureaucratic_seed.txt
+classifier_options: [mystical-recursive, bureaucratic-procedural, neutral-coherent, incoherent]

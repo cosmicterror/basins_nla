@@ -1,5 +1,20 @@
 # Stance-Substitution Experiment — spec (for review)
 
+> ## ⚠️ REVISED post-ct02 (2026-06-18): SUPPRESSION-FIRST
+> The confirmatory ct02 (n=12/cond) **refuted the stance-gate** the original design hinged on:
+> the basin is the DEFAULT (~90% by ~turn 3 from any open opener), and the analytical opener
+> does NOT reliably resist. So "induce against a resisting analytical opener" has no baseline.
+> **Implemented instead** (`src/steer.py`, `configs/steer.yaml`): inject Δ_stance with α<0 to
+> **SUPPRESS the default basin** (toward the detached pole, cf. Bepis −4). α=0 is the ~90%
+> baseline; the test is whether basin rate DROPS as α goes negative while coherence holds
+> (the classifier's own 'incoherent' label is the coherence guard). Controls: placebo (random
+> norm-matched vector) + an α>0 axis-check arm. `--calibrate` finds the coherent/suppressive
+> α window first; `--run` does the sweep. Induction (+Δ) is deferred — it needs a task-opener
+> low-basin baseline to be meaningful. The original (pre-ct02) override-in design follows as history.
+
+---
+
+
 Status: DRAFT for David's sanity-check before we spend GPU. Single repo (basins_nla);
 nla_modes / Arm A is dead. External lead: @UnderwaterBepis (thread in
 `~/power_bird/artifacts`) steered Gemma with a CAA "connection" vector at ±4 and flipped
