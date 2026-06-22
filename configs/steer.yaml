@@ -15,8 +15,11 @@
 
 stance_pairs: data/stance_pairs.yaml
 ref_norm: 80000            # L32 residual-norm band; α is the fraction of this added (Arm A: ~16k coherent, ~32k breaks)
-alphas: [0.0, -0.20, -0.40, 0.30]   # 0 baseline | negatives suppress | +0.30 axis-check
-placebo_alpha: -0.20      # a RANDOM norm-matched vector at this α (control C1: rules out "any push breaks it")
+# calibration (steercal): Δ raw L2≈6.7k; α=-0.2 (-16k) = clean COHERENT suppression to a
+# detached/technical register; α<=-0.4 (-32k) and α=+0.3 break into word-salad. Coherent
+# window |α|<=~0.25, sweet spot -0.2. Sweep the coherent dose-response + the breaking edge:
+alphas: [0.0, -0.10, -0.20, -0.30]   # 0 baseline | -0.1/-0.2 coherent suppress | -0.3 edge
+placebo_alpha: -0.20      # a RANDOM norm-matched vector at α=-0.2 (control C1: rules out "any push breaks it")
 
 self_dialogue:
   n_turns: 12
